@@ -1,4 +1,6 @@
 import math
+from pathlib import Path
+import runpy
 
 import numpy as np
 import torch
@@ -6,6 +8,8 @@ from skimage.metrics import structural_similarity
 
 from doe.quality import pearson_per_plane, quantized_phase_ste, ssim_per_plane
 from doe.results import decode_phase, encode_phase
+from doe.optics import Fresnel,OpticsConfig
+from doe.refinement import refine_phase
 
 
 def test_differentiable_quality_matches_reported_definitions():
@@ -42,3 +46,28 @@ def test_ssim_gradient_matches_finite_difference():
     plus[idx]+=eps;minus[idx]-=eps
     fd=(ssim_per_plane(plus,b).mean()-ssim_per_plane(minus,b).mean())/(2*eps)
     torch.testing.assert_close(a.grad[idx],fd,atol=1e-8,rtol=1e-6)
+
+
+def test_refinement_keeps_one_shared_phase_and_works_under_no_grad():
+    torch.manual_seed(9)
+    optics=Fresnel(OpticsConfig(size=16))
+    initial=torch.rand(1,16,16)*2*math.pi-math.pi
+    targets=torch.rand(1,4,16,16)+0.01
+    with torch.no_grad():
+        phase,report=refine_phase(optics,initial,targets,steps=3,check_every=1)
+    assert phase.shape==initial.shape and not phase.requires_grad
+    assert torch.isfinite(phase).all() and phase.abs().max()<=math.pi+1e-6
+    assert report['optimizer_steps']==3
+    assert report['history'][-1]['loss']<=report['history'][0]['loss']
+    assert len(report['best_step_per_input'])==1
+
+
+def test_independent_plane_control_uses_the_same_physics_per_plane():
+    scope=runpy.run_path(str(Path(__file__).resolve().parents[1]/'scripts/probe_quality.py'))
+    optics=Fresnel(OpticsConfig(size=16))
+    control=scope['IndependentPlaneOptics'](optics)
+    phase=torch.rand(2,4,16,16)*2*math.pi-math.pi
+    actual=control.physical(phase)
+    for plane in range(4):
+        expected=optics.physical(phase[:,plane])[:,plane]
+        torch.testing.assert_close(actual[:,plane],expected)

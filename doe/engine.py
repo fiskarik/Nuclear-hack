@@ -13,6 +13,8 @@ from torch.utils.data import DataLoader
 from .data import QuartetDataset, load_quartet
 from .model import FresnelNet, gerchberg_saxton, physics_loss
 from .optics import OpticsConfig
+from .quality import perceptual_loss_per_item
+from .refinement import refine_phase
 from .results import export_result, phase_metrics
 
 
@@ -27,6 +29,7 @@ class TrainConfig:
     device: str = "auto"
     threads: int = 2
     initial_checkpoint: str | None = None
+    objective: str = "physics"
 
 
 def setup(seed=42, device="auto", threads=2):
@@ -64,12 +67,14 @@ def load_model(checkpoint, device):
 
 
 @torch.no_grad()
-def validation_loss(model, loader, device):
+def validation_loss(model, loader, device, objective="physics"):
     model.eval()
     total, count = 0.0, 0
     for targets in loader:
         targets = targets.to(device)
-        loss = physics_loss(model.optics, model(targets), targets)
+        phase=model(targets)
+        loss = (perceptual_loss_per_item(model.optics,phase,targets).mean() if objective=="perceptual"
+                else physics_loss(model.optics,phase,targets))
         total += float(loss) * len(targets)
         count += len(targets)
     if not count:
@@ -80,6 +85,8 @@ def validation_loss(model, loader, device):
 def train(data, output, config=TrainConfig()):
     if config.epochs < 1 or config.batch_size < 1 or config.learning_rate <= 0:
         raise ValueError("epochs, batch size and learning rate must be positive")
+    if config.objective not in ("physics","perceptual"):
+        raise ValueError("objective must be physics or perceptual")
     device = setup(config.seed, config.device, config.threads)
     output = Path(output)
     if output.exists() and any(output.iterdir()):
@@ -101,7 +108,7 @@ def train(data, output, config=TrainConfig()):
         model = FresnelNet(stages=config.stages, width=config.width).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=config.epochs)
-    initial = validation_loss(model, val_loader, device)
+    initial = validation_loss(model, val_loader, device, config.objective)
     initial_parameters = {name: p.detach().clone() for name, p in model.named_parameters()}
     best_loss, best_epoch = initial, 0
     history = [{"epoch": 0, "train_loss": None, "validation_loss": initial}]
@@ -125,14 +132,15 @@ def train(data, output, config=TrainConfig()):
             targets = targets.to(device)
             optimizer.zero_grad(set_to_none=True)
             phase = model(targets)
-            loss = physics_loss(model.optics, phase, targets)
+            loss = (perceptual_loss_per_item(model.optics,phase,targets).mean() if config.objective=="perceptual"
+                    else physics_loss(model.optics,phase,targets))
             if not torch.isfinite(loss):
                 raise FloatingPointError("nonfinite training loss")
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0, error_if_nonfinite=True)
             optimizer.step()
             total += float(loss.detach()) * len(targets)
-        val_loss = validation_loss(model, val_loader, device)
+        val_loss = validation_loss(model, val_loader, device, config.objective)
         if val_loss < best_loss:
             best_loss, best_epoch = val_loss, epoch
             save(output / "best.pt", epoch, val_loss)
@@ -146,7 +154,7 @@ def train(data, output, config=TrainConfig()):
     drift = sum(float((p.detach() - initial_parameters[name]).square().sum()) for name, p in model.named_parameters())**0.5
     report = {"config": asdict(config), "device": str(device), "torch": torch.__version__,
               "train_count": len(train_data), "validation_count": len(val_data),
-              "selection": "minimum validation physics loss; test split never used for selection",
+              "selection": f"minimum validation {config.objective} loss; test split never used for selection",
               "initial_validation_loss": initial, "best_validation_loss": best_loss, "best_epoch": best_epoch,
               "parameter_l2_change_last_vs_initial": drift,
               "elapsed_seconds": time.perf_counter() - start, "history": history,
@@ -157,7 +165,7 @@ def train(data, output, config=TrainConfig()):
 
 
 @torch.no_grad()
-def evaluate(data, checkpoint, output, device="auto", batch_size=4, gs_steps=80, threads=2):
+def evaluate(data, checkpoint, output, device="auto", batch_size=4, gs_steps=80, threads=2, refine_steps=0, refine_lr=0.08):
     device = setup(device=device, threads=threads)
     model, state = load_model(checkpoint, device)
     initial = FresnelNet(model.optics.config, stages=model.stages, width=model.width).to(device).eval()
@@ -167,12 +175,18 @@ def evaluate(data, checkpoint, output, device="auto", batch_size=4, gs_steps=80,
     methods = {"neural": lambda x: model(x), "untrained_network": lambda x: initial(x),
                f"gs_{model.stages}": lambda x: gerchberg_saxton(model.optics, x, model.stages),
                f"gs_{gs_steps}": lambda x: gerchberg_saxton(model.optics, x, gs_steps)}
+    if refine_steps:
+        methods['neural_refined']=lambda x: refine_phase(model.optics,model(x),x,steps=refine_steps,lr=refine_lr)[0]
     records = {name: [] for name in methods}
     seconds = {name: 0.0 for name in methods}
     # Exclude one warmup batch per method from performance measurements.
     warmup = next(iter(loader)).to(device)
-    for operation in methods.values():
-        operation(warmup)
+    for name,operation in methods.items():
+        # Warm kernels without repeating a potentially long optimization run.
+        if name=='neural_refined':
+            refine_phase(model.optics,model(warmup),warmup,steps=min(2,refine_steps),lr=refine_lr)
+        else:
+            operation(warmup)
     for targets in loader:
         targets = targets.to(device)
         for name, operation in methods.items():
@@ -193,6 +207,8 @@ def evaluate(data, checkpoint, output, device="auto", batch_size=4, gs_steps=80,
               "quantization": "8-bit phase and 8-bit reconstructed amplitudes, same for all methods",
               "timing": "one warmed pass per test batch; includes phase synthesis, excludes image IO and metric computation; batched throughput, not single-sample latency",
               "summary": summary, "per_sample": records}
+    if refine_steps:
+        report['refinement']={'steps':refine_steps,'lr':refine_lr,'method':'neural initializer + per-input phase Adam; not a pure network'}
     output = Path(output)
     output.parent.mkdir(parents=True, exist_ok=True)
     if output.exists():
@@ -203,7 +219,7 @@ def evaluate(data, checkpoint, output, device="auto", batch_size=4, gs_steps=80,
 
 
 @torch.no_grad()
-def predict(checkpoint, images, output, device="auto", threads=2, source="user PNGs"):
+def predict(checkpoint, images, output, device="auto", threads=2, source="user PNGs",refine_steps=0,refine_lr=0.08):
     device = setup(device=device, threads=threads)
     model, state = load_model(checkpoint, device)
     targets = load_quartet(images).to(device)
@@ -213,8 +229,14 @@ def predict(checkpoint, images, output, device="auto", threads=2, source="user P
     phase = model(targets)
     sync(device)
     elapsed = time.perf_counter() - start
+    refinement=None
+    if refine_steps:
+        phase,refinement=refine_phase(model.optics,phase,targets,steps=refine_steps,lr=refine_lr)
     metadata = {"method": "FresnelNet", "network_stages": model.stages, "cnn_width": model.width,
                 "source": source, "device": str(device), "checkpoint_epoch": state["epoch"],
                 "checkpoint_sha256": hashlib.sha256(Path(checkpoint).read_bytes()).hexdigest(),
-                "network_forward_seconds": elapsed, "test_time_optimizer_steps": 0}
+                "network_forward_seconds": elapsed, "test_time_optimizer_steps": refine_steps}
+    if refinement:
+        metadata['method']='FresnelNet + per-input phase Adam'
+        metadata['refinement']=refinement
     return export_result(output, model.optics, phase, images, metadata)

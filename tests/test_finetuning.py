@@ -17,7 +17,8 @@ from doe.model import FresnelNet
 from doe.optics import OpticsConfig
 
 
-def test_finetuning_starts_from_the_supplied_weights(tmp_path):
+@pytest.mark.parametrize("objective",["physics","perceptual"])
+def test_finetuning_starts_from_the_supplied_weights(tmp_path,objective):
     torch.manual_seed(13)
     model = FresnelNet(stages=1, width=4)
     with torch.no_grad():
@@ -29,7 +30,7 @@ def test_finetuning_starts_from_the_supplied_weights(tmp_path):
     generate_dataset(tmp_path / "data", train=1, validation=1, test=1)
     report = train(tmp_path / "data", tmp_path / "run", TrainConfig(
         epochs=1, batch_size=1, stages=1, width=4, learning_rate=0.0001,
-        initial_checkpoint=str(checkpoint), device="cpu"))
+        initial_checkpoint=str(checkpoint), device="cpu",objective=objective))
     initial = torch.load(tmp_path / "run/initial.pt", weights_only=True)
     for name, tensor in model.state_dict().items():
         torch.testing.assert_close(initial["model"][name], tensor, rtol=0, atol=0)

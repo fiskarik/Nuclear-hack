@@ -63,6 +63,7 @@ from doe.data import generate_dataset
 import runpy
 
 INPUT_IMAGES = []  # ['/kaggle/input/YOUR_DATA/image1.png', ..., 'image4.png']
+REFINE_STEPS = int(os.environ.get('DOE_REFINE_STEPS', '0'))  # Optional, slower phase solver; raw network outputs remain separate
 TEXTURE_ZIP = os.environ.get('DOE_TEXTURE_ZIP') or None  # '/kaggle/input/YOUR_DATA/sbs...128x128.zip'
 INITIAL_CHECKPOINT = os.environ.get('DOE_INITIAL_CHECKPOINT') or None  # '/kaggle/input/YOUR_MODEL/best.pt'
 if TEXTURE_ZIP and not INITIAL_CHECKPOINT:
@@ -141,6 +142,11 @@ print(json.dumps(result['planes'], indent=2))
 from IPython.display import display, Image as DisplayImage
 display(DisplayImage(filename=str(RUN / 'result/comparison.png')))
 display(DisplayImage(filename=str(RUN / 'result/phase_preview.png')))
+if REFINE_STEPS:
+    refined = predict(TRAINING / 'best.pt', input_paths, RUN / 'result-refined', source=data_source,
+                      refine_steps=REFINE_STEPS, refine_lr=0.08)
+    print('Neural initializer + phase optimizer (not raw network):', refined['mean_pearson'], refined['mean_ssim'])
+    display(DisplayImage(filename=str(RUN / 'result-refined/comparison.png')))
 if INITIAL_CHECKPOINT:
     before_result = predict(INITIAL_CHECKPOINT, input_paths, RUN / 'result-before', source=data_source)
 if TEXTURE_ZIP:
@@ -163,7 +169,7 @@ for name, source in SOURCE_FILES.items():
     path.write_text(source)
 for name in ('data', 'training', 'result'):
     shutil.copytree(RUN / name, submission / name)
-for name in ('result-before', 'reports'):
+for name in ('result-before', 'reports', 'result-refined'):
     if (RUN / name).exists(): shutil.copytree(RUN / name, submission / name)
 if INITIAL_CHECKPOINT:
     shutil.copy2(INITIAL_CHECKPOINT, submission / 'parent.pt')

@@ -1,0 +1,262 @@
+{
+  "goal": {
+    "pearson": 0.8,
+    "ssim": 0.8,
+    "one_shared_doe": true
+  },
+  "goal_achieved": false,
+  "checkpoint_selection": "QAT selected by validation perceptual loss; test used only for final evaluation",
+  "production_weights_replaced": false,
+  "measurements": [
+    {
+      "split": "test_32",
+      "method": "original neural",
+      "pearson": 0.573640414340796,
+      "ssim": 0.41852615717988945,
+      "seconds_per_quartet": 0.04167589715621034,
+      "one_shared_doe": true,
+      "both_at_least_0_8": false
+    },
+    {
+      "split": "test_32",
+      "method": "QAT neural candidate",
+      "pearson": 0.5726837994137547,
+      "ssim": 0.41655417701605074,
+      "seconds_per_quartet": 0.03795682859356475,
+      "one_shared_doe": true,
+      "both_at_least_0_8": false
+    },
+    {
+      "split": "test_32",
+      "method": "GS 80",
+      "pearson": 0.6567532902117895,
+      "ssim": 0.4929055373411685,
+      "seconds_per_quartet": 0.20043237253105417,
+      "one_shared_doe": true,
+      "both_at_least_0_8": false
+    },
+    {
+      "split": "test_32",
+      "method": "QAT neural + 600 Adam steps",
+      "pearson": 0.6711085418588847,
+      "ssim": 0.6063691115023933,
+      "seconds_per_quartet": 6.041433310625052,
+      "one_shared_doe": true,
+      "both_at_least_0_8": false
+    },
+    {
+      "split": "user_quartet",
+      "method": "original neural",
+      "pearson": 0.3113522583892081,
+      "ssim": 0.21860509155962,
+      "seconds_per_quartet": 0.04136080199987191,
+      "one_shared_doe": true,
+      "both_at_least_0_8": false
+    },
+    {
+      "split": "user_quartet",
+      "method": "QAT neural + 0 Adam steps",
+      "pearson": 0.3114351288114182,
+      "ssim": 0.2198550863559513,
+      "seconds_per_quartet": 0.02164150799944764,
+      "one_shared_doe": true,
+      "both_at_least_0_8": false
+    },
+    {
+      "split": "user_quartet",
+      "method": "QAT neural + 600 Adam steps",
+      "pearson": 0.5750020051971865,
+      "ssim": 0.4322246910095021,
+      "seconds_per_quartet": 8.48874338099995,
+      "one_shared_doe": true,
+      "both_at_least_0_8": false
+    },
+    {
+      "split": "user_quartet",
+      "method": "QAT neural + 3000 Adam steps",
+      "pearson": 0.5973213878708451,
+      "ssim": 0.46088131020297807,
+      "seconds_per_quartet": 35.209151912997186,
+      "one_shared_doe": true,
+      "both_at_least_0_8": false
+    },
+    {
+      "split": "validation_first_4",
+      "method": "validation_chirp1_600",
+      "pearson": 0.526164643113882,
+      "ssim": 0.45938561876247497,
+      "seconds_per_quartet": 7.269716333750694,
+      "one_shared_doe": true,
+      "both_at_least_0_8": false
+    },
+    {
+      "split": "validation_first_4",
+      "method": "validation_chirp3_600",
+      "pearson": 0.554956717865693,
+      "ssim": 0.46095961501251353,
+      "seconds_per_quartet": 7.642363607249536,
+      "one_shared_doe": true,
+      "both_at_least_0_8": false
+    },
+    {
+      "split": "validation_first_4",
+      "method": "validation_chirp3_lbfgs",
+      "pearson": 0.5430568594042352,
+      "ssim": 0.43618838407596494,
+      "seconds_per_quartet": 14.34133335225033,
+      "one_shared_doe": true,
+      "both_at_least_0_8": false
+    },
+    {
+      "split": "validation_first_4",
+      "method": "validation_independent_planes_600",
+      "pearson": 0.9896773055822108,
+      "ssim": 0.9507153883964294,
+      "seconds_per_quartet": 8.881311307999567,
+      "one_shared_doe": false,
+      "both_at_least_0_8": false
+    },
+    {
+      "split": "validation_first_4",
+      "method": "validation_neural_3000",
+      "pearson": 0.5736298233766255,
+      "ssim": 0.5026729914791432,
+      "seconds_per_quartet": 34.89583707999918,
+      "one_shared_doe": true,
+      "both_at_least_0_8": false
+    },
+    {
+      "split": "validation_first_4",
+      "method": "validation_perceptual_600",
+      "pearson": 0.5502844482141929,
+      "ssim": 0.4504435887466903,
+      "seconds_per_quartet": 7.175964982249752,
+      "one_shared_doe": true,
+      "both_at_least_0_8": false
+    },
+    {
+      "split": "validation_first_4",
+      "method": "validation_physics_600",
+      "pearson": 0.5367043757750111,
+      "ssim": 0.3440055689800098,
+      "seconds_per_quartet": 3.1548568502494163,
+      "one_shared_doe": true,
+      "both_at_least_0_8": false
+    }
+  ],
+  "qat_training": {
+    "config": {
+      "epochs": 12,
+      "batch_size": 4,
+      "learning_rate": 0.0005,
+      "stages": 6,
+      "width": 12,
+      "seed": 42,
+      "device": "cpu",
+      "threads": 2,
+      "initial_checkpoint": "deliverables/texture_finetuned/best.pt",
+      "objective": "perceptual"
+    },
+    "device": "cpu",
+    "torch": "2.9.1+cpu",
+    "train_count": 256,
+    "validation_count": 32,
+    "selection": "minimum validation perceptual loss; test split never used for selection",
+    "initial_validation_loss": 0.6679681986570358,
+    "best_validation_loss": 0.6673516482114792,
+    "best_epoch": 10,
+    "parameter_l2_change_last_vs_initial": 0.3975354874136531,
+    "elapsed_seconds": 212.982619041999,
+    "history": [
+      {
+        "epoch": 0,
+        "train_loss": null,
+        "validation_loss": 0.6679681986570358
+      },
+      {
+        "epoch": 1,
+        "train_loss": 0.6792829120531678,
+        "validation_loss": 0.6679743006825447,
+        "learning_rate": 0.0005
+      },
+      {
+        "epoch": 2,
+        "train_loss": 0.6791433477774262,
+        "validation_loss": 0.6680738106369972,
+        "learning_rate": 0.0004914814565722671
+      },
+      {
+        "epoch": 3,
+        "train_loss": 0.6788999726995826,
+        "validation_loss": 0.6677539944648743,
+        "learning_rate": 0.00046650635094610973
+      },
+      {
+        "epoch": 4,
+        "train_loss": 0.6786340204998851,
+        "validation_loss": 0.6679570451378822,
+        "learning_rate": 0.00042677669529663686
+      },
+      {
+        "epoch": 5,
+        "train_loss": 0.6786950463429093,
+        "validation_loss": 0.6677301004528999,
+        "learning_rate": 0.000375
+      },
+      {
+        "epoch": 6,
+        "train_loss": 0.678386970423162,
+        "validation_loss": 0.6675585806369781,
+        "learning_rate": 0.0003147047612756302
+      },
+      {
+        "epoch": 7,
+        "train_loss": 0.678282555192709,
+        "validation_loss": 0.6674256771802902,
+        "learning_rate": 0.00025
+      },
+      {
+        "epoch": 8,
+        "train_loss": 0.6781190671026707,
+        "validation_loss": 0.6676434651017189,
+        "learning_rate": 0.00018529523872436984
+      },
+      {
+        "epoch": 9,
+        "train_loss": 0.6779527943581343,
+        "validation_loss": 0.6674689501523972,
+        "learning_rate": 0.00012500000000000006
+      },
+      {
+        "epoch": 10,
+        "train_loss": 0.6778574101626873,
+        "validation_loss": 0.6673516482114792,
+        "learning_rate": 7.322330470336314e-05
+      },
+      {
+        "epoch": 11,
+        "train_loss": 0.6777724865823984,
+        "validation_loss": 0.6674836501479149,
+        "learning_rate": 3.3493649053890325e-05
+      },
+      {
+        "epoch": 12,
+        "train_loss": 0.6776883192360401,
+        "validation_loss": 0.6674938350915909,
+        "learning_rate": 8.51854342773295e-06
+      }
+    ],
+    "dataset_manifest_sha256": "453f634f7d9276e6e91f80bd5c9318df947114b2a201b11656ef2cc383f1f195",
+    "parent_checkpoint": {
+      "filename": "best.pt",
+      "sha256": "eff566a2287f30fdad029eda903967e6674bcdb330d2ca433e2aabf2a39c32ad",
+      "epoch": 24
+    },
+    "optimizer": "fresh Adam state; fine-tuning weights, not resuming optimizer state"
+  },
+  "limitations": [
+    "The four-independent-DOE control is not compliant with the original task.",
+    "Failure of these experiments is not a mathematical impossibility proof.",
+    "17 tests passed; GPU/Kaggle execution was not available."
+  ]
+}

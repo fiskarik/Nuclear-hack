@@ -1,0 +1,231 @@
+{
+  "optics": {
+    "size": 128,
+    "wavelength_m": 5.32e-07,
+    "pixel_pitch_m": 1e-05,
+    "distances_m": [
+      0.0241,
+      0.0253,
+      0.0265,
+      0.0277
+    ]
+  },
+  "sampling": {
+    "critical_distance_m": 0.02406015037593985,
+    "criterion": "conservative edge chirp frequency / Nyquist; <=1 passes",
+    "planes": [
+      {
+        "distance_m": 0.0241,
+        "input_chirp_nyquist_ratio": 0.9983464886282096,
+        "output_chirp_nyquist_ratio": 1.00165625,
+        "input_chirp_passes": true
+      },
+      {
+        "distance_m": 0.0253,
+        "input_chirp_nyquist_ratio": 0.9509940860055277,
+        "output_chirp_nyquist_ratio": 1.05153125,
+        "input_chirp_passes": true
+      },
+      {
+        "distance_m": 0.0265,
+        "input_chirp_nyquist_ratio": 0.9079302028656547,
+        "output_chirp_nyquist_ratio": 1.10140625,
+        "input_chirp_passes": true
+      },
+      {
+        "distance_m": 0.0277,
+        "input_chirp_nyquist_ratio": 0.8685974864960235,
+        "output_chirp_nyquist_ratio": 1.1512812499999998,
+        "input_chirp_passes": true
+      }
+    ],
+    "interpretation": "input chirp must be resolved before FFT; output chirp may exceed Nyquist for complex-field interpolation, but is pointwise unit-modulus and does not alter sampled amplitude. Do not claim both chirps are aliasing-free."
+  },
+  "metadata": {
+    "method": "FresnelNet + per-input phase Adam",
+    "network_stages": 6,
+    "cnn_width": 12,
+    "source": "fixed user quartet; excluded from model training and hyperparameter selection; refinement fits the supplied targets as inputs",
+    "device": "cpu",
+    "checkpoint_epoch": 10,
+    "checkpoint_sha256": "44044c123ce168e5a8d4a8a6e8a9429a5d72ec6ea3ff13202a4cf68c1f2f2e66",
+    "network_forward_seconds": 0.033791713998652995,
+    "test_time_optimizer_steps": 600,
+    "refinement": {
+      "method": "per-input Adam on shared phase, with straight-through 8-bit quantization",
+      "optimizer_steps": 600,
+      "learning_rate": 0.08,
+      "best_step_per_input": [
+        600
+      ],
+      "seconds": 8.454951667001296,
+      "history": [
+        {
+          "step": 0,
+          "loss": 0.7405819892883301
+        },
+        {
+          "step": 25,
+          "loss": 0.6229113936424255
+        },
+        {
+          "step": 50,
+          "loss": 0.6005018353462219
+        },
+        {
+          "step": 75,
+          "loss": 0.5827519297599792
+        },
+        {
+          "step": 100,
+          "loss": 0.5675710439682007
+        },
+        {
+          "step": 125,
+          "loss": 0.5552607774734497
+        },
+        {
+          "step": 150,
+          "loss": 0.5458348989486694
+        },
+        {
+          "step": 175,
+          "loss": 0.5379495024681091
+        },
+        {
+          "step": 200,
+          "loss": 0.5318741798400879
+        },
+        {
+          "step": 225,
+          "loss": 0.5259064435958862
+        },
+        {
+          "step": 250,
+          "loss": 0.5216954350471497
+        },
+        {
+          "step": 275,
+          "loss": 0.5190932154655457
+        },
+        {
+          "step": 300,
+          "loss": 0.5163492560386658
+        },
+        {
+          "step": 325,
+          "loss": 0.5135890245437622
+        },
+        {
+          "step": 350,
+          "loss": 0.5116126537322998
+        },
+        {
+          "step": 375,
+          "loss": 0.5101819634437561
+        },
+        {
+          "step": 400,
+          "loss": 0.5091816782951355
+        },
+        {
+          "step": 425,
+          "loss": 0.5079335570335388
+        },
+        {
+          "step": 450,
+          "loss": 0.5069803595542908
+        },
+        {
+          "step": 475,
+          "loss": 0.5061705112457275
+        },
+        {
+          "step": 500,
+          "loss": 0.505705714225769
+        },
+        {
+          "step": 525,
+          "loss": 0.5053480267524719
+        },
+        {
+          "step": 550,
+          "loss": 0.5049891471862793
+        },
+        {
+          "step": 575,
+          "loss": 0.5047427415847778
+        },
+        {
+          "step": 600,
+          "loss": 0.5045897364616394
+        }
+      ],
+      "warning": "This is a neural initializer plus iterative phase solver, not a single network forward pass."
+    }
+  },
+  "planes": [
+    {
+      "plane": 1,
+      "distance_mm": 24.1,
+      "output_pixel_pitch_um": 10.016562500000001,
+      "amplitude_peak_before_display_scaling": 2.016453742980957,
+      "pearson": 0.5774955336067907,
+      "ssim": 0.28492039899791793
+    },
+    {
+      "plane": 2,
+      "distance_mm": 25.3,
+      "output_pixel_pitch_um": 10.5153125,
+      "amplitude_peak_before_display_scaling": 1.9534714221954346,
+      "pearson": 0.6934596032759602,
+      "ssim": 0.7036584168085843
+    },
+    {
+      "plane": 3,
+      "distance_mm": 26.5,
+      "output_pixel_pitch_um": 11.014062500000001,
+      "amplitude_peak_before_display_scaling": 6.252322673797607,
+      "pearson": 0.23837054093123505,
+      "ssim": 0.06956455984993036
+    },
+    {
+      "plane": 4,
+      "distance_mm": 27.7,
+      "output_pixel_pitch_um": 11.5128125,
+      "amplitude_peak_before_display_scaling": 1.7266993522644043,
+      "pearson": 0.79068234297476,
+      "ssim": 0.6707553883815758
+    }
+  ],
+  "mean_pearson": 0.5750020051971865,
+  "mean_ssim": 0.4322246910095021,
+  "phase_encoding": "uint8 0 -> -pi; 255 -> +pi; round to nearest",
+  "reconstruction": "single-FFT Fresnel, reconstructed from the saved quantized DOE PNG",
+  "png_scaling": "amplitude (not intensity); each plane divided by its own maximum; no background subtraction or fitted gain",
+  "ssim": {
+    "implementation": "skimage.metrics.structural_similarity",
+    "win_size": 7,
+    "data_range": 1.0
+  },
+  "pearson_constant_image": "null (undefined), never a fabricated zero or one",
+  "doe_sha256": "770e69bc9df71cba09f9754537752907be89170c56d1c1e44bca9c79f83b9f8d",
+  "inputs": [
+    {
+      "name": "plane_1.png",
+      "sha256": "97d82d495a3c048f2f05905d482783ea5503d48ccc351ccb0a245d3079b9b84a"
+    },
+    {
+      "name": "plane_2.png",
+      "sha256": "ae9c34d887ec37786bd67dbe255f19ef6dd9b0debf6b648810a3d6f0381db4b6"
+    },
+    {
+      "name": "plane_3.png",
+      "sha256": "66900f8c0f1c1e9c443524126773578134f89c933cb00e23d7f51ef6b52f2fe1"
+    },
+    {
+      "name": "plane_4.png",
+      "sha256": "ffb64df806fbdcbb1134c64e1e00a2e0ef84ddd3fe315dcd2dd080e6a4d9ae72"
+    }
+  ]
+}

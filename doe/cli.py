@@ -19,6 +19,7 @@ def main(argv=None):
     fit.add_argument("--data", required=True)
     fit.add_argument("--output", required=True)
     fit.add_argument("--initial-checkpoint", help="Fine-tune existing weights; optimizer starts fresh")
+    fit.add_argument("--objective",choices=("physics","perceptual"),default="physics")
     for flag, kind, default in (("epochs", int, 24), ("batch-size", int, 4), ("stages", int, 6),
                                 ("width", int, 12), ("learning-rate", float, 0.005), ("seed", int, 42)):
         fit.add_argument("--" + flag, type=kind, default=default)
@@ -35,6 +36,9 @@ def main(argv=None):
     for p in (fit, infer, assess):
         p.add_argument("--device", default="auto")
         p.add_argument("--threads", type=int, default=2)
+    for p in (infer,assess):
+        p.add_argument('--refine-steps',type=int,default=0,help='Optional per-input optimizer; zero preserves pure neural inference')
+        p.add_argument('--refine-lr',type=float,default=0.08)
     args = vars(parser.parse_args(argv))
     command = args.pop("command")
     if command == "generate":
