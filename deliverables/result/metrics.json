@@ -1,0 +1,88 @@
+{
+  "optics": {
+    "size": 128,
+    "wavelength_m": 5.32e-07,
+    "pixel_pitch_m": 1e-05,
+    "distances_m": [
+      0.0241,
+      0.0253,
+      0.0265,
+      0.0277
+    ]
+  },
+  "metadata": {
+    "method": "FresnelNet",
+    "network_stages": 6,
+    "cnn_width": 12,
+    "source": "procedurally generated independent held-out demonstration, seed 91007; not official hackathon inputs",
+    "device": "cpu",
+    "checkpoint_epoch": 24,
+    "checkpoint_sha256": "fc26df106b0be3ca488c4cc4b2e3ee00cc70f69060da0973dc4fbc10297d6878",
+    "network_forward_seconds": 0.11025591499992515,
+    "test_time_optimizer_steps": 0
+  },
+  "planes": [
+    {
+      "plane": 1,
+      "distance_mm": 24.1,
+      "output_pixel_pitch_um": 10.016562500000001,
+      "amplitude_peak_before_display_scaling": 8.878811836242676,
+      "pearson": 0.6891561887222963,
+      "ssim": 0.14879581775407472
+    },
+    {
+      "plane": 2,
+      "distance_mm": 25.3,
+      "output_pixel_pitch_um": 10.5153125,
+      "amplitude_peak_before_display_scaling": 9.181098937988281,
+      "pearson": 0.39648121084642285,
+      "ssim": 0.08305983950495702
+    },
+    {
+      "plane": 3,
+      "distance_mm": 26.5,
+      "output_pixel_pitch_um": 11.014062500000001,
+      "amplitude_peak_before_display_scaling": 7.625815391540527,
+      "pearson": 0.6239149258645724,
+      "ssim": 0.07223084940823114
+    },
+    {
+      "plane": 4,
+      "distance_mm": 27.7,
+      "output_pixel_pitch_um": 11.5128125,
+      "amplitude_peak_before_display_scaling": 7.451939582824707,
+      "pearson": 0.6510544792310219,
+      "ssim": 0.07877656738994171
+    }
+  ],
+  "mean_pearson": 0.5901517011660784,
+  "mean_ssim": 0.09571576851430115,
+  "phase_encoding": "uint8 0 -> -pi; 255 -> +pi; round to nearest",
+  "reconstruction": "single-FFT Fresnel, reconstructed from the saved quantized DOE PNG",
+  "png_scaling": "amplitude (not intensity); each plane divided by its own maximum; no background subtraction or fitted gain",
+  "ssim": {
+    "implementation": "skimage.metrics.structural_similarity",
+    "win_size": 7,
+    "data_range": 1.0
+  },
+  "pearson_constant_image": "null (undefined), never a fabricated zero or one",
+  "doe_sha256": "0e8f4995c29ad6f72cc3a957d3feb9f6234bd6f63de301bc09740937a7358ea8",
+  "inputs": [
+    {
+      "name": "plane_1.png",
+      "sha256": "719127609e2a5139063bf545865ceba58a226196209fde4f18bc19132277e1dd"
+    },
+    {
+      "name": "plane_2.png",
+      "sha256": "cd4ea63d700db8a2cb67e79a1632cf0467e69ffabc1aaf8dbb7c53bf0ee6ad10"
+    },
+    {
+      "name": "plane_3.png",
+      "sha256": "93fa7cc87aa099614007e047c3d84c7cf7c72d7966c17e58567e00933723ce50"
+    },
+    {
+      "name": "plane_4.png",
+      "sha256": "08bd5620a8f7177ba449656ebbf6aea54ed59906bfe5c1f180670176287bb76d"
+    }
+  ]
+}

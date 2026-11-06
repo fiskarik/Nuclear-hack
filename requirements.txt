@@ -1,0 +1,7 @@
+# PyTorch is already installed on Kaggle; retain its CUDA build there.
+# For local CPU setup, install torch from https://download.pytorch.org/whl/cpu first.
+torch==2.9.1
+numpy==2.3.5
+Pillow==12.0.0
+scikit-image==0.25.2
+matplotlib==3.10.7
