@@ -30,6 +30,22 @@ class OpticsConfig:
     def to_dict(self):
         return asdict(self)
 
+    def sampling_report(self):
+        """Conservative edge-frequency checks for the two quadratic chirps.
+
+        The output chirp is only a pointwise factor, never FFT-transformed again;
+        its sampling affects interpolation of complex phase, not sampled |U|.
+        """
+        critical = self.size * self.pixel_pitch_m**2 / self.wavelength_m
+        return {
+            "critical_distance_m": critical,
+            "criterion": "conservative edge chirp frequency / Nyquist; <=1 passes",
+            "planes": [{"distance_m": z, "input_chirp_nyquist_ratio": critical / z,
+                        "output_chirp_nyquist_ratio": z / critical,
+                        "input_chirp_passes": critical / z <= 1} for z in self.distances_m],
+            "interpretation": "input chirp must be resolved before FFT; output chirp may exceed Nyquist for complex-field interpolation, but is pointwise unit-modulus and does not alter sampled amplitude. Do not claim both chirps are aliasing-free.",
+        }
+
 
 def fft2c(field):
     return torch.fft.fftshift(torch.fft.fft2(torch.fft.ifftshift(field, dim=(-2, -1)), norm="ortho"), dim=(-2, -1))

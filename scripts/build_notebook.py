@@ -26,6 +26,11 @@ Settings → Accelerator → GPU T4 ×2 при доступной квоте; к
 обозначенный процедурный демонстрационный набор. Для своих данных укажите четыре
 пути в `INPUT_IMAGES` ниже. Их порядок соответствует возрастающему z.
 
+Для дообучения на текстурах загрузите ZIP и исходные веса как Kaggle Input,
+заполните `TEXTURE_ZIP` и `INITIAL_CHECKPOINT`. Тогда notebook разделит данные
+по семействам, исключит Cracks/Gabor/Perlin/Voronoi из обучения и сформирует
+PDF/CSV-отчёт с результатами до и после.
+
 Метод — фиксированная развёрнутая нейросеть с оптическими проекциями и обучаемыми
 CNN-коррекциями. Обучение без эталонных голограмм; при инференсе нет шагов оптимизатора.
 Тестовые изображения не участвуют в обучении и выборе checkpoint.
@@ -55,8 +60,13 @@ CPU использует меньший учебный набор; на GPU мо
 """), nbf.v4.new_code_cell("""from datetime import datetime, timezone
 from doe.engine import TrainConfig, train, evaluate, predict
 from doe.data import generate_dataset
+import runpy
 
 INPUT_IMAGES = []  # ['/kaggle/input/YOUR_DATA/image1.png', ..., 'image4.png']
+TEXTURE_ZIP = os.environ.get('DOE_TEXTURE_ZIP') or None  # '/kaggle/input/YOUR_DATA/sbs...128x128.zip'
+INITIAL_CHECKPOINT = os.environ.get('DOE_INITIAL_CHECKPOINT') or None  # '/kaggle/input/YOUR_MODEL/best.pt'
+if TEXTURE_ZIP and not INITIAL_CHECKPOINT:
+    raise ValueError('Texture fine-tuning requires INITIAL_CHECKPOINT')
 QUICK_CHECK = os.environ.get('DOE_QUICK_CHECK') == '1'  # integration validation only
 GPU = torch.cuda.is_available()
 RUN = BASE / ('doe-run-' + datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S-%f'))
@@ -70,13 +80,26 @@ else:
     counts = (512, 64, 32) if GPU else (96, 16, 16)
     config = TrainConfig(epochs=20 if GPU else 24, batch_size=8 if GPU else 4,
                          stages=8 if GPU else 6, width=16 if GPU else 12)
+if TEXTURE_ZIP:
+    counts = (8, 4, 4) if QUICK_CHECK else (256, 32, 32)
+    config.epochs = 2 if QUICK_CHECK else 30
+    config.learning_rate = 0.001
+if INITIAL_CHECKPOINT:
+    parent = torch.load(INITIAL_CHECKPOINT, map_location='cpu', weights_only=True)
+    config.stages = parent['architecture']['stages']
+    config.width = parent['architecture']['width']
+    config.initial_checkpoint = INITIAL_CHECKPOINT
 print('Run:', RUN, '\\nTraining:', config)
 """), nbf.v4.new_markdown_cell("""## Данные и обучение
 
 Разные seed для train/validation/test; сеть минимизирует ошибку амплитуд после
 дифференцируемого одно-FFT оператора Френеля. Лучшая модель выбирается по validation loss.
 `initial.pt` нужен для контроля того, чему научилась сеть. `best.pt` — для инференса.
-"""), nbf.v4.new_code_cell("""generate_dataset(DATA, train=counts[0], validation=counts[1], test=counts[2])
+"""), nbf.v4.new_code_cell("""if TEXTURE_ZIP:
+    prepare = runpy.run_path(str(PROJECT / 'scripts/prepare_texture_dataset.py'))['prepare']
+    prepare(TEXTURE_ZIP, DATA, train=counts[0], validation=counts[1], test=counts[2])
+else:
+    generate_dataset(DATA, train=counts[0], validation=counts[1], test=counts[2])
 training_report = train(DATA, TRAINING, config)
 assert training_report['parameter_l2_change_last_vs_initial'] > 0
 print('Best validation epoch:', training_report['best_epoch'])
@@ -89,6 +112,9 @@ print('Best validation epoch:', training_report['best_epoch'])
 """), nbf.v4.new_code_cell("""benchmark = evaluate(DATA, TRAINING / 'best.pt', RUN / 'benchmark.json',
                      batch_size=config.batch_size, gs_steps=12 if QUICK_CHECK else 80)
 print(json.dumps(benchmark['summary'], indent=2))
+if INITIAL_CHECKPOINT:
+    before_benchmark = evaluate(DATA, INITIAL_CHECKPOINT, RUN / 'benchmark-before.json',
+                                batch_size=config.batch_size, gs_steps=12 if QUICK_CHECK else 80)
 """), nbf.v4.new_markdown_cell("""## ДОЭ и восстановленные изображения
 
 Сеть выдаёт фазу, кодируемую как `0 → −π`, `255 → +π` с округлением.
@@ -103,6 +129,10 @@ print(json.dumps(benchmark['summary'], indent=2))
         raise ValueError('Specify exactly four paths in increasing distance order')
     input_paths = [Path(p) for p in INPUT_IMAGES]
     data_source = 'user-provided quartet'
+elif TEXTURE_ZIP:
+    names = runpy.run_path(str(PROJECT / 'scripts/prepare_noise_quartet.py'))['SELECTION']
+    input_paths = [DATA / 'pool' / Path(name).parent.name.replace(' ', '_') / Path(name).name for name in names]
+    data_source = 'reserved texture families: Cracks, Gabor, Perlin, Voronoi; not used in training or validation'
 else:
     input_paths = [DATA / 'test/sample_0000' / f'plane_{i}.png' for i in range(1, 5)]
     data_source = 'synthetic held-out demonstration, not official hackathon inputs'
@@ -111,6 +141,12 @@ print(json.dumps(result['planes'], indent=2))
 from IPython.display import display, Image as DisplayImage
 display(DisplayImage(filename=str(RUN / 'result/comparison.png')))
 display(DisplayImage(filename=str(RUN / 'result/phase_preview.png')))
+if INITIAL_CHECKPOINT:
+    before_result = predict(INITIAL_CHECKPOINT, input_paths, RUN / 'result-before', source=data_source)
+if TEXTURE_ZIP:
+    report = runpy.run_path(str(PROJECT / 'scripts/report_texture_finetuning.py'))['generate']
+    report(TRAINING / 'training.json', DATA, RUN / 'benchmark-before.json', RUN / 'benchmark.json',
+           RUN / 'result-before', RUN / 'result', RUN / 'reports')
 """), nbf.v4.new_markdown_cell("""## Материалы для экспертов
 
 Архив содержит код, полный сгенерированный набор, веса, историю обучения,
@@ -127,6 +163,11 @@ for name, source in SOURCE_FILES.items():
     path.write_text(source)
 for name in ('data', 'training', 'result'):
     shutil.copytree(RUN / name, submission / name)
+for name in ('result-before', 'reports'):
+    if (RUN / name).exists(): shutil.copytree(RUN / name, submission / name)
+if INITIAL_CHECKPOINT:
+    shutil.copy2(INITIAL_CHECKPOINT, submission / 'parent.pt')
+    shutil.copy2(RUN / 'benchmark-before.json', submission / 'benchmark-before.json')
 shutil.copy2(RUN / 'benchmark.json', submission / 'benchmark.json')
 (submission / 'runtime.json').write_text(json.dumps({'torch': torch.__version__, 'numpy': np.__version__,
     'pillow': PIL.__version__, 'skimage': skimage.__version__, 'device': benchmark['device'],

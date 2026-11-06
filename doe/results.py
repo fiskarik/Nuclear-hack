@@ -99,7 +99,8 @@ def export_result(output, optics, phase, image_paths, metadata=None):
                      "amplitude_peak_before_display_scaling": peak,
                      **metrics(input_arrays[i], image)})
     report = {
-        "optics": optics.config.to_dict(), "metadata": metadata or {}, "planes": rows,
+        "optics": optics.config.to_dict(), "sampling": optics.config.sampling_report(),
+        "metadata": metadata or {}, "planes": rows,
         "mean_pearson": float(np.mean([row["pearson"] for row in rows if row["pearson"] is not None]))
                         if any(row["pearson"] is not None for row in rows) else None,
         "mean_ssim": float(np.mean([row["ssim"] for row in rows])),

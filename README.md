@@ -11,13 +11,26 @@
 
 ## Готовые материалы
 
-- [Полный архив для экспертов](deliverables/submission.zip): исходники, данные,
+- **Последнее дообучение на текстурах:** [отчёты и результаты](deliverables/texture_finetuned/README.md),
+  [PDF](deliverables/texture_finetuned/reports/report.pdf),
+  [новые веса](deliverables/texture_finetuned/best.pt),
+  [полный архив](deliverables/texture_finetuned/submission.zip).
+- [Архив базовой версии до дообучения](deliverables/submission.zip): исходники, данные,
   checkpoint, обучение, независимая проверка и изображения.
 - [Обученные веса](deliverables/best.pt) — готовая CPU-модель, 6 слоёв, 24 эпохи.
 - [Пример ДОЭ и четырёх реконструкций](deliverables/result/).
 - [Результаты независимой проверки](deliverables/benchmark.json) и
   [история обучения](deliverables/training.json).
 - [Kaggle Notebook](notebooks/fresnel_doe_kaggle.ipynb).
+
+Отдельно рассчитана предоставленная пользователем четвёрка текстур:
+[входы и порядок плоскостей](examples/noise_quartet/README.md),
+[ДОЭ, реконструкции и метрики](deliverables/noise_quartet/README.md).
+Использована готовая сеть, без переобучения.
+
+Режим дообучения на текстурах и описание указанных источников:
+[docs/texture-finetuning.md](docs/texture-finetuning.md). В Kaggle notebook можно
+задать `TEXTURE_ZIP` и `INITIAL_CHECKPOINT`; он сформирует PDF/CSV-отчёт до/после.
 
 Для инференса без повторного обучения используйте `--checkpoint deliverables/best.pt`
 в команде `doe predict`. После распаковки полного архива этот checkpoint также

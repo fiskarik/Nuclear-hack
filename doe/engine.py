@@ -26,6 +26,7 @@ class TrainConfig:
     seed: int = 42
     device: str = "auto"
     threads: int = 2
+    initial_checkpoint: str | None = None
 
 
 def setup(seed=42, device="auto", threads=2):
@@ -88,7 +89,16 @@ def train(data, output, config=TrainConfig()):
     loader = DataLoader(train_data, batch_size=config.batch_size, shuffle=True,
                         generator=torch.Generator().manual_seed(config.seed), num_workers=0)
     val_loader = DataLoader(val_data, batch_size=config.batch_size, num_workers=0)
-    model = FresnelNet(stages=config.stages, width=config.width).to(device)
+    parent = None
+    if config.initial_checkpoint:
+        model, previous = load_model(config.initial_checkpoint, device)
+        if (model.stages, model.width) != (config.stages, config.width):
+            raise ValueError("fine-tuning architecture must match the initial checkpoint")
+        parent = {"filename": Path(config.initial_checkpoint).name,
+                  "sha256": hashlib.sha256(Path(config.initial_checkpoint).read_bytes()).hexdigest(),
+                  "epoch": previous["epoch"]}
+    else:
+        model = FresnelNet(stages=config.stages, width=config.width).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=config.epochs)
     initial = validation_loss(model, val_loader, device)
@@ -102,7 +112,7 @@ def train(data, output, config=TrainConfig()):
                     "architecture": {"stages": config.stages, "width": config.width},
                     "optics": model.optics.config.to_dict(), "training": asdict(config),
                     "epoch": epoch, "validation_loss": val_loss,
-                    "dataset_manifest_sha256": manifest_hash}, path)
+                    "dataset_manifest_sha256": manifest_hash, "parent_checkpoint": parent}, path)
 
     save(output / "initial.pt", 0, initial)
     save(output / "best.pt", 0, initial)
@@ -140,7 +150,8 @@ def train(data, output, config=TrainConfig()):
               "initial_validation_loss": initial, "best_validation_loss": best_loss, "best_epoch": best_epoch,
               "parameter_l2_change_last_vs_initial": drift,
               "elapsed_seconds": time.perf_counter() - start, "history": history,
-              "dataset_manifest_sha256": manifest_hash}
+              "dataset_manifest_sha256": manifest_hash, "parent_checkpoint": parent,
+              "optimizer": "fresh Adam state; fine-tuning weights, not resuming optimizer state"}
     (output / "training.json").write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")
     return report
 

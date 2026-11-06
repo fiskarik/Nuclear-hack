@@ -18,6 +18,7 @@ def main(argv=None):
     fit = sub.add_parser("train", help="Train with differentiable Fresnel reconstruction, without DOE labels")
     fit.add_argument("--data", required=True)
     fit.add_argument("--output", required=True)
+    fit.add_argument("--initial-checkpoint", help="Fine-tune existing weights; optimizer starts fresh")
     for flag, kind, default in (("epochs", int, 24), ("batch-size", int, 4), ("stages", int, 6),
                                 ("width", int, 12), ("learning-rate", float, 0.005), ("seed", int, 42)):
         fit.add_argument("--" + flag, type=kind, default=default)
