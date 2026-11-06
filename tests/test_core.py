@@ -8,7 +8,7 @@ import pytest
 import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from doe.metrics import pearson, ssim, ssim_global  # noqa: E402
+from doe.metrics import pearson, ssim, ssim_7x7, ssim_global  # noqa: E402
 from doe.physics import FresnelSystem, phase_to_uint8, uint8_to_phase  # noqa: E402
 
 
@@ -52,3 +52,4 @@ def test_metrics_identity_and_skimage():
                                     data_range=255)
     assert ssim(a, b) == pytest.approx(ref, abs=1e-9)
     assert pearson(a, b) == pytest.approx(np.corrcoef(a.ravel(), b.ravel())[0, 1])
+    assert ssim_7x7(a, b) == pytest.approx(skm.structural_similarity(a, b, data_range=255), abs=1e-9)

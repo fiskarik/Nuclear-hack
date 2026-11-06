@@ -6,6 +6,7 @@
   K1 = 0,01, K2 = 0,03, L = 255; итог — среднее по изображению.
   Совпадает с ``skimage.metrics.structural_similarity(..., gaussian_weights=True,
   sigma=1.5, use_sample_covariance=False, data_range=255)`` и MATLAB ``ssim``.
+* ``ssim_7x7`` — SSIM как в ``skimage`` по умолчанию (окно 7×7, выборочная ковариация).
 * ``ssim_global`` — формула со слайда 3, где средние, дисперсии и
   ковариация берутся по всему изображению (одно «окно» на весь кадр).
 
@@ -63,6 +64,22 @@ def ssim(a: np.ndarray, b: np.ndarray, win: int = 11, sigma: float = 1.5) -> flo
     return float((num / den).mean())
 
 
+def ssim_7x7(a: np.ndarray, b: np.ndarray, win: int = 7) -> float:
+    """SSIM как ``skimage.metrics.structural_similarity`` по умолчанию: равномерное окно 7×7,
+    выборочная ковариация (N/(N−1)), L = 255. Для сопоставимости с другими протоколами."""
+    a = np.asarray(a, dtype=np.float64)
+    b = np.asarray(b, dtype=np.float64)
+    g = np.full(win, 1.0 / win)
+    cov_norm = win * win / (win * win - 1.0)
+    mu_a, mu_b = _filter_valid(a, g), _filter_valid(b, g)
+    s_aa = cov_norm * (_filter_valid(a * a, g) - mu_a ** 2)
+    s_bb = cov_norm * (_filter_valid(b * b, g) - mu_b ** 2)
+    s_ab = cov_norm * (_filter_valid(a * b, g) - mu_a * mu_b)
+    num = (2 * mu_a * mu_b + _C1) * (2 * s_ab + _C2)
+    den = (mu_a ** 2 + mu_b ** 2 + _C1) * (s_aa + s_bb + _C2)
+    return float((num / den).mean())
+
+
 def evaluate(originals: list[np.ndarray], recons: list[np.ndarray]) -> list[dict]:
     """Попарное сравнение исходных и восстановленных изображений."""
     rows = []
@@ -72,5 +89,6 @@ def evaluate(originals: list[np.ndarray], recons: list[np.ndarray]) -> list[dict
             "pearson": pearson(a, b),
             "ssim": ssim(a, b),
             "ssim_global": ssim_global(a, b),
+            "ssim_7x7": ssim_7x7(a, b),
         })
     return rows

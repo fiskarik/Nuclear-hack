@@ -81,11 +81,11 @@ def aliasing_figure(path: Path):
     fig, ax = plt.subplots(1, 2, figsize=(10, 3.6))
     ax[0].plot(z * 1e3, f_edge, label="частота чирпа у края ДОЭ")
     ax[0].axhline(0.5, color="r", ls="--", label="предел Найквиста (0,5)")
-    for zi in p.distances:
+    for k, zi in enumerate(p.distances):
         fi = edge * p.pixel / (p.wavelength * zi)
         ax[0].plot(zi * 1e3, fi, "ko")
-        ax[0].annotate(f"{zi * 1e3:.1f} мм\n{fi:.3f}", (zi * 1e3, fi), textcoords="offset points", xytext=(4, 6),
-                       fontsize=7)
+        ax[0].annotate(f"{zi * 1e3:.1f} мм: {fi:.3f}", (zi * 1e3, fi), textcoords="offset points",
+                       xytext=(8, 34 - 14 * k), fontsize=7, arrowprops=dict(arrowstyle="-", lw=0.5))
     ax[0].set_xlabel("z, мм")
     ax[0].set_ylabel("циклов / пиксел")
     ax[0].set_title("Локальная частота exp(jπr²/λz) на краю ДОЭ")
@@ -170,6 +170,35 @@ def gallery(path: Path, name: str, imgs, res_nn, res_gs):
     plt.close(fig)
 
 
+def stages_figure(path: Path, model, system, imgs, dev, alpha: float = 0.5):
+    """Восстановление плоскости 1…4 после инициализации и после каждой обученной стадии."""
+    from doe.metrics import pearson, ssim
+    from doe.model import forward_unit
+
+    t = torch.tensor(np.stack(imgs)[None] / 255.0, dtype=torch.float32, device=dev)
+    with torch.no_grad():
+        hist = model(t, system, alpha)
+    k = len(hist)
+    fig, ax = plt.subplots(4, k + 1, figsize=(1.9 * (k + 1), 7.8))
+    for i in range(4):
+        ax[i, 0].imshow(imgs[i], cmap="gray", vmin=0, vmax=255)
+        ax[i, 0].set_title(f"цель {i + 1}", fontsize=7)
+        for j, slm in enumerate(hist):
+            r = forward_unit(system, slm).abs()[0, i].cpu().numpy()
+            r8 = np.round(r / r.max() * 255).astype(np.uint8)
+            ax[i, j + 1].imshow(r8, cmap="gray", vmin=0, vmax=255)
+            lab = "иниц." if j == 0 else f"стадия {j}"
+            ax[i, j + 1].set_title(f"{lab}: {pearson(imgs[i], r8):.2f}/{ssim(imgs[i], r8):.2f}", fontsize=7)
+    for a in ax.ravel():
+        a.set_xticks([])
+        a.set_yticks([])
+        a.grid(False)
+    fig.suptitle("Работа развёрнутой сети: восстановление после каждой стадии (КК / ИСС), α = 0,5", fontsize=9)
+    fig.tight_layout()
+    fig.savefig(path)
+    plt.close(fig)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--weights", default=str(ROOT / "weights" / "doe_net.pt"))
@@ -209,6 +238,9 @@ def main():
                          "gs_ms": r_gs.seconds * 1e3}
         print(name, "НС", mean_metrics([r_nn])[:2], "ГС", mean_metrics([r_gs])[:2], flush=True)
     summary["examples"] = per_set
+    for name in ("digits", "textures_a"):
+        if name in sets:
+            stages_figure(out / f"stages_{name}.png", model, system, sets[name], dev)
 
     # --- сравнение методов на контрольных группах ---
     groups = random_quads(a.n)

@@ -35,7 +35,7 @@ from __future__ import annotations
 import torch
 import torch.nn as nn
 
-from .losses import fit_scale
+from .losses import fit_scale, tradeoff_loss
 from .physics import FresnelSystem
 
 
@@ -96,15 +96,17 @@ def forward_unit(system: FresnelSystem, slm: torch.Tensor) -> torch.Tensor:
 
 class DOENet(nn.Module):
     def __init__(self, num_planes: int = 4, base: int = 32, depth: int = 4, stages: int = 4,
-                 stage_base: int = 24, stage_depth: int = 3):
+                 stage_base: int = 24, stage_depth: int = 3, grad_feat: bool = False):
         super().__init__()
         p = num_planes
         self.config = dict(num_planes=p, base=base, depth=depth, stages=stages,
-                           stage_base=stage_base, stage_depth=stage_depth)
+                           stage_base=stage_base, stage_depth=stage_depth, grad_feat=grad_feat)
         self.num_planes = p
+        self.grad_feat = grad_feat  # подавать стадиям ∂L/∂|F_i| — «обучаемый градиентный спуск»
         self.use_amp = False  # fp16 только для свёрток (FFT всегда в fp32)
         self.init_net = UNet(p + 1, 2 * p, base, depth)
-        self.stage_nets = nn.ModuleList([UNet(3 * p + 1, 3 * p, stage_base, stage_depth) for _ in range(stages)])
+        cin = (4 if grad_feat else 3) * p + 1
+        self.stage_nets = nn.ModuleList([UNet(cin, 3 * p, stage_base, stage_depth) for _ in range(stages)])
         # стартовое смещение «маски свободы амплитуды»: σ(−3) ≈ 0.05
         for net in self.stage_nets:
             nn.init.constant_(net.out.bias[p:2 * p], -3.0)
@@ -114,6 +116,16 @@ class DOENet(nn.Module):
             with torch.autocast("cuda", dtype=torch.float16):
                 return net(x).float()
         return net(x)
+
+    @staticmethod
+    def loss_grad(mag: torch.Tensor, target: torch.Tensor, alpha: torch.Tensor) -> torch.Tensor:
+        """Нормированный градиент функции потерь по модулям полей ∂L/∂|F_i| (B,P,N,N), без 2-го порядка."""
+        with torch.enable_grad():
+            m = mag.detach().float().requires_grad_(True)
+            loss = tradeoff_loss(m, target.float(), alpha)["loss"] * m.shape[0]
+            (g,) = torch.autograd.grad(loss, m)
+        g = g / g.pow(2).mean(dim=(-2, -1), keepdim=True).clamp_min(1e-24).sqrt()
+        return (g.clamp(-6, 6) / 2).detach()
 
     @staticmethod
     def norm_target(target: torch.Tensor) -> torch.Tensor:
@@ -142,8 +154,12 @@ class DOENet(nn.Module):
         # --- обученные итерации ---
         for net in self.stage_nets:
             fields = forward_unit(system, slm)
-            mag_fit = fit_scale(fields.abs(), amp)
-            o = self._run(net, torch.cat([tin, mag_fit / 4, (amp - mag_fit) / 4, a_map], 1))
+            mag = fields.abs()
+            mag_fit = fit_scale(mag, amp)
+            feats = [tin, mag_fit / 4, (amp - mag_fit) / 4]
+            if self.grad_feat:
+                feats.append(self.loss_grad(mag, target, alpha))
+            o = self._run(net, torch.cat(feats + [a_map], 1))
             w = 2.0 * torch.tanh(o[:, :p] / 2.0)
             mask = torch.sigmoid(o[:, p:2 * p])
             delta = torch.pi * torch.tanh(o[:, 2 * p:] / torch.pi)

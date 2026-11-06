@@ -10,7 +10,7 @@ import torch
 
 from .imageio import amplitude_to_uint8, save_gray
 from .iterative import gerchberg_saxton
-from .losses import tradeoff_loss
+from .losses import pearson_t, ssim_map, tradeoff_loss
 from .metrics import evaluate
 from .model import DOENet
 from .physics import FresnelSystem, phase_to_uint8, uint8_to_phase
@@ -26,9 +26,20 @@ def load_model(path: str | Path = DEFAULT_WEIGHTS, device: str = "cpu") -> DOENe
     return model
 
 
+def minmax_loss(recon: torch.Tensor, target: torch.Tensor, sharpness: float = 20.0) -> torch.Tensor:
+    """−softmin(КК, ИСС): максимизирует худшую из двух метрик (восстановление нормируется на максимум)."""
+    r = recon / recon.amax(dim=(-2, -1), keepdim=True).clamp_min(1e-8)
+    pcc = pearson_t(r, target).mean()
+    ssim = ssim_map(r, target).mean()
+    return torch.logsumexp(torch.stack([-pcc, -ssim]) * sharpness, 0) / sharpness
+
+
 def refine(system: FresnelSystem, target: torch.Tensor, psi: torch.Tensor, iters: int, alpha: float,
-           lr: float = 0.03) -> torch.Tensor:
-    """Дополнительная оптимизация фазы (Adam) от решения сети — опционально."""
+           lr: float = 0.03, objective: str = "tradeoff") -> torch.Tensor:
+    """Дополнительная оптимизация фазы (Adam) от решения сети — опционально.
+
+    objective="tradeoff" — (1−α)(1−КК) + α(1−ИСС) + 0,1·СКО; "minmax" — максимум худшей метрики.
+    """
     if iters <= 0:
         return psi
     a = torch.full((target.shape[0],), float(alpha), device=target.device)
@@ -36,9 +47,35 @@ def refine(system: FresnelSystem, target: torch.Tensor, psi: torch.Tensor, iters
     opt = torch.optim.Adam([p], lr=lr)
     for _ in range(iters):
         opt.zero_grad(set_to_none=True)
-        tradeoff_loss(system.reconstruct(p), target, a)["loss"].backward()
+        rec = system.reconstruct(p)
+        loss = minmax_loss(rec, target) if objective == "minmax" else tradeoff_loss(rec, target, a)["loss"]
+        loss.backward()
         opt.step()
     return p.detach()
+
+
+ALPHA_GRID = (0.0, 0.25, 0.5, 0.75, 1.0)
+
+
+@torch.no_grad()
+def nn_auto_alpha(model: DOENet, system: FresnelSystem, target: torch.Tensor,
+                  grid: tuple[float, ...] = ALPHA_GRID) -> tuple[torch.Tensor, float]:
+    """Один батч-проход сети при нескольких α; выбирается ДОЭ с максимальным min(КК, ИСС).
+
+    Цели известны на этапе синтеза (это входные изображения), поэтому выбор делается по
+    физической модели — без оптимизации и без подгонки результата.
+    """
+    k = len(grid)
+    t = target.expand(k, -1, -1, -1)
+    psi = model.synthesize(t, system, torch.tensor(grid, device=target.device))
+    phi = system.to_physical(psi)
+    phi = uint8_to_phase(phase_to_uint8(phi))  # оцениваем ровно то, что будет сохранено
+    rec = system.reconstruct(system.to_dechirped(phi))
+    rec = torch.round(rec / rec.amax(dim=(-2, -1), keepdim=True) * 255) / 255
+    tq = torch.round(t * 255) / 255
+    score = torch.minimum(pearson_t(rec, tq).mean(1), ssim_map(rec, tq).mean(dim=(-3, -2, -1)))
+    best = int(torch.argmax(score))
+    return psi[best:best + 1], float(grid[best])
 
 
 @dataclass
@@ -48,11 +85,13 @@ class Result:
     metrics: list[dict]
     seconds: float                  # время синтеза ДОЭ (без ввода-вывода)
     method: str
+    alpha: float | None = None      # использованное α (для --alpha auto — выбранное)
 
 
 def synthesize(images: list[np.ndarray], method: str = "nn", model: DOENet | None = None,
-               alpha: float = 0.5, refine_iters: int = 0, gs_iters: int = 200, norm: str = "max",
-               device: str = "cpu", system: FresnelSystem | None = None) -> Result:
+               alpha: float | str = 0.5, refine_iters: int = 0, gs_iters: int = 200, norm: str = "max",
+               device: str = "cpu", system: FresnelSystem | None = None, objective: str = "tradeoff") -> Result:
+    """alpha — число из [0, 1] или "auto" (выбор по min(КК, ИСС), только для method="nn")."""
     system = system or FresnelSystem().to(device)
     target = torch.tensor(np.stack(images)[None] / 255.0, dtype=torch.float32, device=device)
 
@@ -65,14 +104,19 @@ def synthesize(images: list[np.ndarray], method: str = "nn", model: DOENet | Non
     if method == "nn":
         if model is None:
             raise ValueError("нужна модель")
-        with torch.no_grad():
-            psi = model.synthesize(target, system, alpha)
-        psi = refine(system, target, psi, refine_iters, alpha)
+        if alpha == "auto":
+            psi, alpha = nn_auto_alpha(model, system, target)
+        else:
+            with torch.no_grad():
+                psi = model.synthesize(target, system, float(alpha))
+        psi = refine(system, target, psi, refine_iters, float(alpha), objective=objective)
     elif method == "gs":
         psi = gerchberg_saxton(system, target, iters=gs_iters)
+        alpha = None
     elif method == "adam":
+        alpha = 0.5 if alpha == "auto" else float(alpha)
         psi = gerchberg_saxton(system, target, iters=50)
-        psi = refine(system, target, psi, refine_iters or 500, alpha)
+        psi = refine(system, target, psi, refine_iters or 500, alpha, objective=objective)
     else:
         raise ValueError(method)
     sync()
@@ -82,7 +126,8 @@ def synthesize(images: list[np.ndarray], method: str = "nn", model: DOENet | Non
     doe = phase_to_uint8(system.to_physical(psi))[0].cpu()
     rec = system.reconstruct_physical(uint8_to_phase(doe)[None].to(device))[0].cpu().numpy()
     recons = [amplitude_to_uint8(rec[i], images[i], norm) for i in range(len(images))]
-    return Result(doe.numpy(), recons, evaluate(images, recons), seconds, method)
+    return Result(doe.numpy(), recons, evaluate(images, recons), seconds, method,
+                  None if alpha is None else float(alpha))
 
 
 def save_result(res: Result, out: str | Path, originals: list[np.ndarray] | None = None) -> None:
@@ -95,16 +140,17 @@ def save_result(res: Result, out: str | Path, originals: list[np.ndarray] | None
     import json
 
     with open(out / "metrics.csv", "w", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=["plane", "distance_mm", "pearson", "ssim", "ssim_global"])
+        w = csv.DictWriter(f, fieldnames=["plane", "distance_mm", "pearson", "ssim", "ssim_7x7", "ssim_global"])
         w.writeheader()
         for row, z in zip(res.metrics, FresnelSystem().params.distances):
             w.writerow({"plane": row["plane"], "distance_mm": round(z * 1e3, 1),
-                        **{k: f"{row[k]:.4f}" for k in ("pearson", "ssim", "ssim_global")}})
+                        **{k: f"{row[k]:.4f}" for k in ("pearson", "ssim", "ssim_7x7", "ssim_global")}})
     summary = {
         "method": res.method,
+        "alpha": res.alpha,
         "synthesis_seconds": res.seconds,
         "planes": res.metrics,
-        "mean": {k: float(np.mean([r[k] for r in res.metrics])) for k in ("pearson", "ssim", "ssim_global")},
+        "mean": {k: float(np.mean([r[k] for r in res.metrics])) for k in ("pearson", "ssim", "ssim_7x7", "ssim_global")},
     }
     (out / "metrics.json").write_text(json.dumps(summary, indent=2, ensure_ascii=False))
     if originals is not None:

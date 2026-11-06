@@ -45,6 +45,7 @@ def parse():
     ap.add_argument("--stages", type=int, default=4)
     ap.add_argument("--stage-base", type=int, default=24)
     ap.add_argument("--stage-depth", type=int, default=3)
+    ap.add_argument("--grad-feat", action="store_true", help="подавать стадиям градиент потерь ∂L/∂|F_i|")
     ap.add_argument("--deep-sup", type=float, default=0.2, help="вес потерь промежуточных стадий")
     ap.add_argument("--w-mse", type=float, default=0.1)
     ap.add_argument("--amp", action="store_true", help="fp16 для свёрток (GPU)")
@@ -137,7 +138,7 @@ def main():
 
     system = FresnelSystem().to(dev)
     model = DOENet(base=args.base, depth=args.depth, stages=args.stages,
-                   stage_base=args.stage_base, stage_depth=args.stage_depth).to(dev)
+                   stage_base=args.stage_base, stage_depth=args.stage_depth, grad_feat=args.grad_feat).to(dev)
     model.use_amp = args.amp
     if args.init:
         ck = torch.load(args.init, map_location=dev)
@@ -163,10 +164,10 @@ def main():
     while True:
         if total and step >= total:
             break
-        if not total and step == 40:
-            per = np.median(t_hist[10:]) if len(t_hist) > 15 else np.mean(t_hist)
+        if not total and len(t_hist) == 40:
+            per = np.median(t_hist[10:])
             eval_overhead = 1.08
-            total = int((args.hours * 3600 - (time.time() - t0)) / (per * eval_overhead))
+            total = step + int((args.hours * 3600 - (time.time() - t0)) / (per * eval_overhead))
             print(f"≈{per * 1000:.0f} мс/шаг → всего шагов: {total}", flush=True)
         ts = time.time()
         lr_total = total or 10 ** 9
