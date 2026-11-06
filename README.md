@@ -11,6 +11,10 @@
 
 ## Готовые материалы
 
+Исследование новой цели **Pearson ≥0.8 и SSIM ≥0.8**:
+[методика, источники и промежуточные результаты](docs/quality-research.md).
+Цель пока не достигнута; текущие опубликованные веса не заменены экспериментом.
+
 - **Последнее дообучение на текстурах:** [отчёты и результаты](deliverables/texture_finetuned/README.md),
   [PDF](deliverables/texture_finetuned/reports/report.pdf),
   [новые веса](deliverables/texture_finetuned/best.pt),
