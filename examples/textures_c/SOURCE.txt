@@ -1,0 +1,5 @@
+Отложенные (не участвуют в обучении) текстуры из data/textures:
+craters/craters_03
+milky/milky_07
+spokes/spokes_03
+turbulence/turbulence_07

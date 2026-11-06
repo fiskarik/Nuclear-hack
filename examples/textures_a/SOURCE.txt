@@ -1,0 +1,5 @@
+Отложенные (не участвуют в обучении) текстуры из data/textures:
+cracks/cracks_03
+marble/marble_03
+perlin/perlin_03
+voronoi/voronoi_03

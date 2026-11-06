@@ -1,0 +1,5 @@
+Отложенные (не участвуют в обучении) текстуры из data/textures:
+gabor/gabor_07
+swirl/swirl_07
+techno/techno_07
+vein/vein_07

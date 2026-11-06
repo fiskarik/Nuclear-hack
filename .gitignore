@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+kaggle_kernels/
+runs/
+*.egg-info/
+.venv/
+data/cache/
