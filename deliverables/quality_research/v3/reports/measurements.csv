@@ -1,0 +1,20 @@
+split,method,pearson,ssim,sampling_grid,seconds_per_quartet_batched,both_at_least_0_8
+test_32,baseline,0.5736382073988644,0.41852391350367146,original,0.03253182471871696,False
+test_32,adaptive,0.6074657264675063,0.4362941939225484,original,0.15174041093746382,False
+test_32,gs_80,0.6567532902117895,0.4929055373411685,original,0.20316353346868254,False
+reserved_user_quartet,adaptive + 0 phase Adam steps,0.362231672116485,0.2967842382935133,original,,False
+reserved_user_quartet,adaptive + 3000 phase Adam steps,0.5909117563037806,0.454639064531592,original,,False
+validation_first_4,progressive_direct,0.5067837878117964,0.47926848986430104,original,,False
+validation_first_4,progressive_fitwarm,0.5007313988058014,0.4839975768930499,original,,False
+validation_first_4,raar_085,0.5606038458318134,0.47824293153852404,original,,False
+validation_first_4,raar_095,0.5606038458318134,0.47824293153852404,original,,False
+validation_first_4,homotopy_geometry,0.5426444284918621,0.43673589174548744,original,,False
+validation_first_4,homotopy_targets,0.5510656427219881,0.47064030609498886,original,,False
+validation_first_4,robust_from_expert,0.5720425699431178,0.48632323190009574,original,,False
+validation_first_4,softpeak_from_expert,0.5800220510757124,0.5139970538817066,original,,False
+validation_first_1_fitted_diagnostic,target-specific neural weights; NOT generalization,0.3959405941636712,0.4296675433275084,original,,False
+validation_first_4,camera_pad2,0.6574887407102338,0.49428729194065896,"declared finer camera, padding=2",,False
+validation_first_4,camera_pad2_flat,0.658106336832397,0.4984549023375545,"declared finer camera, padding=2",,False
+validation_first_4,camera_pad3,0.678074538472552,0.49564850027987073,"declared finer camera, padding=3",,False
+validation_first_4,camera_pad3_minimum,0.6745763663539238,0.49967217549572684,"declared finer camera, padding=3",,False
+validation_first_4,camera_pad4,0.6844057380457989,0.5013320764623554,"declared finer camera, padding=4",,False

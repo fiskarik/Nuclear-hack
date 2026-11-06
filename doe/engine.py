@@ -11,7 +11,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from .data import QuartetDataset, load_quartet
-from .model import FresnelNet, gerchberg_saxton, physics_loss
+from .model import FresnelNet, build_model, gerchberg_saxton, physics_loss
 from .optics import OpticsConfig
 from .quality import perceptual_loss_per_item
 from .refinement import refine_phase
@@ -30,6 +30,9 @@ class TrainConfig:
     threads: int = 2
     initial_checkpoint: str | None = None
     objective: str = "physics"
+    architecture: str = "fixed"
+    initializer_width: int = 8
+    initializer_depth: int = 3
 
 
 def setup(seed=42, device="auto", threads=2):
@@ -60,7 +63,7 @@ def load_model(checkpoint, device):
     if state.get("format_version") != 1:
         raise ValueError("unsupported checkpoint format")
     optics = OpticsConfig(**state["optics"])
-    model = FresnelNet(optics, **state["architecture"]).to(device)
+    model = build_model(optics, state["architecture"]).to(device)
     model.load_state_dict(state["model"])
     model.eval()
     return model, state
@@ -87,6 +90,8 @@ def train(data, output, config=TrainConfig()):
         raise ValueError("epochs, batch size and learning rate must be positive")
     if config.objective not in ("physics","perceptual"):
         raise ValueError("objective must be physics or perceptual")
+    if config.architecture not in ('fixed','wavefront','adaptive'):
+        raise ValueError('architecture must be fixed, wavefront or adaptive')
     device = setup(config.seed, config.device, config.threads)
     output = Path(output)
     if output.exists() and any(output.iterdir()):
@@ -97,15 +102,36 @@ def train(data, output, config=TrainConfig()):
                         generator=torch.Generator().manual_seed(config.seed), num_workers=0)
     val_loader = DataLoader(val_data, batch_size=config.batch_size, num_workers=0)
     parent = None
+    requested={'kind':config.architecture,'stages':config.stages,'width':config.width}
+    if config.architecture!='fixed':
+        requested.update(initializer_width=config.initializer_width,initializer_depth=config.initializer_depth)
     if config.initial_checkpoint:
         model, previous = load_model(config.initial_checkpoint, device)
-        if (model.stages, model.width) != (config.stages, config.width):
-            raise ValueError("fine-tuning architecture must match the initial checkpoint")
+        old_arch=model.architecture();old_stages=model.stages
+        if model.width!=config.width or config.stages<old_stages:
+            raise ValueError('width must match and stage count cannot decrease during fine-tuning')
+        if config.architecture=='fixed' and (old_arch['kind']!='fixed' or config.stages!=old_stages):
+            raise ValueError('requested fixed architecture differs from checkpoint')
+        if old_arch['kind']=='adaptive' and config.architecture!='adaptive':
+            raise ValueError('cannot discard adaptive projection layers during fine-tuning')
+        if old_arch['kind']!='fixed' and (config.initializer_width!=old_arch['initializer_width'] or config.initializer_depth<old_arch['initializer_depth']):
+            raise ValueError('initializer width must match and depth cannot decrease')
+        if old_arch!=requested:
+            expanded=build_model(model.optics.config,requested).to(device)
+            transferred=dict(model.state_dict())
+            if config.stages!=old_stages:
+                indices=torch.arange(config.stages,device=device)%old_stages
+                transferred['plane_logits']=transferred['plane_logits'][indices].clone()
+                transferred['relax_logits']=transferred['relax_logits'][indices].clone()
+            missing,unexpected=expanded.load_state_dict(transferred,strict=False)
+            allowed=lambda k:k.startswith(('phase_initializer.','amplitude_modulators.')) or k in ('reference_phase','coordinate_grid','deep_scale')
+            assert not unexpected and all(allowed(k) for k in missing)
+            model=expanded
         parent = {"filename": Path(config.initial_checkpoint).name,
                   "sha256": hashlib.sha256(Path(config.initial_checkpoint).read_bytes()).hexdigest(),
-                  "epoch": previous["epoch"]}
+                  "epoch": previous["epoch"],"architecture":old_arch}
     else:
-        model = FresnelNet(stages=config.stages, width=config.width).to(device)
+        model = build_model(OpticsConfig(),requested).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=config.epochs)
     initial = validation_loss(model, val_loader, device, config.objective)
@@ -116,7 +142,7 @@ def train(data, output, config=TrainConfig()):
 
     def save(path, epoch, val_loss):
         torch.save({"format_version": 1, "model": model.state_dict(),
-                    "architecture": {"stages": config.stages, "width": config.width},
+                    "architecture": model.architecture(),
                     "optics": model.optics.config.to_dict(), "training": asdict(config),
                     "epoch": epoch, "validation_loss": val_loss,
                     "dataset_manifest_sha256": manifest_hash, "parent_checkpoint": parent}, path)
@@ -168,7 +194,7 @@ def train(data, output, config=TrainConfig()):
 def evaluate(data, checkpoint, output, device="auto", batch_size=4, gs_steps=80, threads=2, refine_steps=0, refine_lr=0.08):
     device = setup(device=device, threads=threads)
     model, state = load_model(checkpoint, device)
-    initial = FresnelNet(model.optics.config, stages=model.stages, width=model.width).to(device).eval()
+    initial = build_model(model.optics.config, model.architecture()).to(device).eval()
     # Identical analytical initialization; CNN starts as exact zero correction.
     test = QuartetDataset(data, "test")
     loader = DataLoader(test, batch_size=batch_size, num_workers=0)
@@ -203,6 +229,7 @@ def evaluate(data, checkpoint, output, device="auto", batch_size=4, gs_steps=80,
                          "mean_ssim": float(np.mean([v["ssim"] for v in values])),
                          "seconds_per_quartet_batched": seconds[name] / len(values)}
     report = {"split": "test", "sample_count": len(test), "device": str(device), "batch_size": batch_size,
+              "architecture":model.architecture(),
               "checkpoint_epoch": state["epoch"], "checkpoint_sha256": hashlib.sha256(Path(checkpoint).read_bytes()).hexdigest(),
               "quantization": "8-bit phase and 8-bit reconstructed amplitudes, same for all methods",
               "timing": "one warmed pass per test batch; includes phase synthesis, excludes image IO and metric computation; batched throughput, not single-sample latency",
@@ -233,6 +260,7 @@ def predict(checkpoint, images, output, device="auto", threads=2, source="user P
     if refine_steps:
         phase,refinement=refine_phase(model.optics,phase,targets,steps=refine_steps,lr=refine_lr)
     metadata = {"method": "FresnelNet", "network_stages": model.stages, "cnn_width": model.width,
+                "architecture":model.architecture(),
                 "source": source, "device": str(device), "checkpoint_epoch": state["epoch"],
                 "checkpoint_sha256": hashlib.sha256(Path(checkpoint).read_bytes()).hexdigest(),
                 "network_forward_seconds": elapsed, "test_time_optimizer_steps": refine_steps}

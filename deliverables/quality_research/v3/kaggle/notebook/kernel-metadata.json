@@ -1,0 +1,16 @@
+{
+  "id": "fiskarik/nuclear-hack-adaptive-gpu",
+  "title": "Nuclear Hack Adaptive GPU",
+  "code_file": "adaptive_gpu.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_internet": false,
+  "dataset_sources": [
+    "fiskarik/nuclear-hack-doe-training-v3"
+  ],
+  "competition_sources": [],
+  "kernel_sources": [],
+  "model_sources": []
+}

@@ -1,0 +1,50 @@
+{
+  "checks": [
+    {
+      "folder": "user_neural",
+      "actual_png_reconstruction_verified": true,
+      "planes": [
+        {
+          "pearson": 0.1450110587188477,
+          "ssim": 0.1354265834968217
+        },
+        {
+          "pearson": 0.6052160815858367,
+          "ssim": 0.5654763095059041
+        },
+        {
+          "pearson": 0.15342967664805895,
+          "ssim": 0.10666934533983441
+        },
+        {
+          "pearson": 0.5452698715131963,
+          "ssim": 0.37956471483149307
+        }
+      ]
+    },
+    {
+      "folder": "user_refined_3000",
+      "actual_png_reconstruction_verified": true,
+      "planes": [
+        {
+          "pearson": 0.5944955166092711,
+          "ssim": 0.3005130081047582
+        },
+        {
+          "pearson": 0.7055385754916299,
+          "ssim": 0.7227939504515166
+        },
+        {
+          "pearson": 0.23248241311043857,
+          "ssim": 0.06745907367401717
+        },
+        {
+          "pearson": 0.8311305200037824,
+          "ssim": 0.7277902258960757
+        }
+      ]
+    }
+  ],
+  "checkpoint_epoch": 15,
+  "lineage_verified": true
+}

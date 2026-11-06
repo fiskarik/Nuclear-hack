@@ -64,6 +64,7 @@ import runpy
 
 INPUT_IMAGES = []  # ['/kaggle/input/YOUR_DATA/image1.png', ..., 'image4.png']
 REFINE_STEPS = int(os.environ.get('DOE_REFINE_STEPS', '0'))  # Optional, slower phase solver; raw network outputs remain separate
+MODEL_KIND = os.environ.get('DOE_MODEL_KIND', 'inherit')  # 'wavefront' or 'adaptive' upgrades a matching-width checkpoint
 TEXTURE_ZIP = os.environ.get('DOE_TEXTURE_ZIP') or None  # '/kaggle/input/YOUR_DATA/sbs...128x128.zip'
 INITIAL_CHECKPOINT = os.environ.get('DOE_INITIAL_CHECKPOINT') or None  # '/kaggle/input/YOUR_MODEL/best.pt'
 if TEXTURE_ZIP and not INITIAL_CHECKPOINT:
@@ -89,7 +90,17 @@ if INITIAL_CHECKPOINT:
     parent = torch.load(INITIAL_CHECKPOINT, map_location='cpu', weights_only=True)
     config.stages = parent['architecture']['stages']
     config.width = parent['architecture']['width']
+    config.architecture = parent['architecture'].get('kind','fixed')
+    config.initializer_width = parent['architecture'].get('initializer_width',8)
+    config.initializer_depth = parent['architecture'].get('initializer_depth',3)
     config.initial_checkpoint = INITIAL_CHECKPOINT
+if MODEL_KIND != 'inherit':
+    if MODEL_KIND not in ('fixed','wavefront','adaptive'):
+        raise ValueError('Unknown model architecture')
+    config.architecture = MODEL_KIND
+    if MODEL_KIND == 'adaptive':
+        config.stages = max(config.stages, 12)
+        config.initializer_depth = 4
 print('Run:', RUN, '\\nTraining:', config)
 """), nbf.v4.new_markdown_cell("""## Данные и обучение
 

@@ -20,6 +20,9 @@ def main(argv=None):
     fit.add_argument("--output", required=True)
     fit.add_argument("--initial-checkpoint", help="Fine-tune existing weights; optimizer starts fresh")
     fit.add_argument("--objective",choices=("physics","perceptual"),default="physics")
+    fit.add_argument('--architecture',choices=('fixed','wavefront','adaptive'),default='fixed')
+    fit.add_argument('--initializer-width',type=int,default=8)
+    fit.add_argument('--initializer-depth',type=int,choices=(3,4),default=3)
     for flag, kind, default in (("epochs", int, 24), ("batch-size", int, 4), ("stages", int, 6),
                                 ("width", int, 12), ("learning-rate", float, 0.005), ("seed", int, 42)):
         fit.add_argument("--" + flag, type=kind, default=default)

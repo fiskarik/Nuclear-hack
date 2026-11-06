@@ -12,7 +12,7 @@ from doe.data import QuartetDataset
 from doe.engine import load_model, setup
 from doe.model import physics_loss
 from doe.optics import normalize_targets, unit_complex, fft2c
-from doe.quality import perceptual_loss_per_item
+from doe.quality import perceptual_loss_per_item,robust_quality_loss_per_item
 from doe.results import phase_metrics
 
 
@@ -37,7 +37,7 @@ def main():
     p.add_argument('--steps',type=int,default=600)
     p.add_argument('--count',type=int,default=4)
     p.add_argument('--lr',type=float,default=0.05)
-    p.add_argument('--objective',choices=['perceptual','physics'],default='perceptual')
+    p.add_argument('--objective',choices=['perceptual','physics','robust'],default='perceptual')
     p.add_argument('--initialization',choices=['neural','chirp','chirp_projected','zero_projected','random'],default='neural')
     p.add_argument('--chirp-order',type=float,default=1)
     p.add_argument('--optimizer',choices=['adam','lbfgs'],default='adam')
@@ -45,6 +45,7 @@ def main():
     p.add_argument('--report-every',type=int,default=50)
     p.add_argument('--initial-phase',help='Resume a diagnostic NPZ on exactly the same validation targets')
     p.add_argument('--independent-planes',action='store_true',help='NONCOMPLIANT ablation: four separate DOEs instead of one')
+    p.add_argument('--softmax-temp',type=float,default=0,help='Annealed surrogate for maximum gradient only; PNG forward/scoring unchanged')
     args=p.parse_args()
     output=Path(args.output)
     if output.exists(): raise FileExistsError(output)
@@ -100,8 +101,10 @@ def main():
         def closure():
             nonlocal evaluations
             optimizer.zero_grad(set_to_none=True)
-            loss=(perceptual_loss_per_item(optics,phase,target,quantize=not args.continuous).mean() if args.objective=='perceptual'
-                  else physics_loss(optics,phase,target))
+            temp=args.softmax_temp*(.01+.99*(1-step/max(1,args.steps)))
+            if args.objective=='perceptual':loss=perceptual_loss_per_item(optics,phase,target,quantize=not args.continuous,max_temperature=temp).mean()
+            elif args.objective=='robust':loss=robust_quality_loss_per_item(optics,phase,target,quantize=not args.continuous,max_temperature=temp).mean()
+            else:loss=physics_loss(optics,phase,target)
             if not torch.isfinite(loss): raise FloatingPointError('nonfinite loss')
             loss.backward(); evaluations+=1
             return loss

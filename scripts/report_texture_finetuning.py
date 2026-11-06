@@ -66,12 +66,13 @@ def generate(training, dataset, before_benchmark, after_benchmark, before_result
     (output / "summary.json").write_text(json.dumps(summary, indent=2, allow_nan=False) + "\n")
 
     history = training["history"]
+    objective = training["config"].get("objective", "physics")
     fig, ax = plt.subplots(figsize=(8.5, 4.4), constrained_layout=True)
     epochs = [row["epoch"] for row in history]
     ax.plot(epochs[1:], [row["train_loss"] for row in history[1:]], label="Train")
     ax.plot(epochs, [row["validation_loss"] for row in history], label="Validation")
     ax.axvline(training["best_epoch"], color="gray", linestyle="--", label="Selected checkpoint")
-    ax.set(xlabel="Fine-tuning epoch", ylabel="Physics loss", title="Training history (selection uses validation only)")
+    ax.set(xlabel="Fine-tuning epoch", ylabel=f"{objective.title()} loss", title="Training history (selection uses validation only)")
     ax.legend(); ax.grid(alpha=0.25)
     fig.savefig(output / "learning_curves.png", dpi=160)
     plt.close(fig)
@@ -107,7 +108,7 @@ def generate(training, dataset, before_benchmark, after_benchmark, before_result
         table += f"| {row['case']} | {row['before_pearson']:.5f} | {row['after_pearson']:.5f} | {row['before_ssim']:.5f} | {row['after_ssim']:.5f} |\n"
     markdown = f"""# Отчёт по дообучению на текстурах
 
-Реальное дообучение весов исходной модели, а не обучение новой сети с нуля.
+Обучение с переносом весов исходной модели. Целевая функция: **{objective}**.
 Устройство: **{after['device']}**. Эпох: {training['config']['epochs']}; выбран checkpoint
 эпохи **{training['best_epoch']}** по минимуму validation loss. Adam запущен с новой
 историей оптимизатора. Время обучения: {training['elapsed_seconds']:.1f} с.

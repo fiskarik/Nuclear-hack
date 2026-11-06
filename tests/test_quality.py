@@ -6,7 +6,7 @@ import numpy as np
 import torch
 from skimage.metrics import structural_similarity
 
-from doe.quality import pearson_per_plane, quantized_phase_ste, ssim_per_plane
+from doe.quality import pearson_per_plane, quantized_phase_ste, ssim_per_plane,robust_quality_loss_per_item,_SoftPeakGradient
 from doe.results import decode_phase, encode_phase
 from doe.optics import Fresnel,OpticsConfig
 from doe.refinement import refine_phase
@@ -17,6 +17,8 @@ def test_differentiable_quality_matches_reported_definitions():
     a=rng.uniform(0,1,(2,4,16,16))
     b=rng.uniform(0,1,(2,4,16,16))
     ssim=ssim_per_plane(torch.tensor(a),torch.tensor(b)).numpy()
+    maps=ssim_per_plane(torch.tensor(a),torch.tensor(b),return_map=True)
+    np.testing.assert_allclose(maps.mean(dim=(-2,-1)).numpy(),ssim,atol=1e-12)
     corr=pearson_per_plane(torch.tensor(a),torch.tensor(b)).numpy()
     for i in range(2):
         for j in range(4):
@@ -71,3 +73,22 @@ def test_independent_plane_control_uses_the_same_physics_per_plane():
     for plane in range(4):
         expected=optics.physical(phase[:,plane])[:,plane]
         torch.testing.assert_close(actual[:,plane],expected)
+
+
+def test_robust_quality_objective_has_finite_phase_gradients():
+    torch.manual_seed(51)
+    optics=Fresnel(OpticsConfig(size=16))
+    phase=torch.rand(1,16,16,requires_grad=True)
+    target=torch.rand(1,4,16,16)*.05+.7
+    loss=robust_quality_loss_per_item(optics,phase,target).mean()
+    loss.backward()
+    assert torch.isfinite(loss) and torch.isfinite(phase.grad).all() and phase.grad.abs().max()>0
+
+
+def test_soft_peak_keeps_exact_forward_maximum_and_only_changes_gradient():
+    value=torch.tensor([[[[.1,.3],[.5,.7]]]],requires_grad=True)
+    peak=_SoftPeakGradient.apply(value,.2)
+    torch.testing.assert_close(peak,value.amax(dim=(-2,-1),keepdim=True),rtol=0,atol=0)
+    peak.sum().backward()
+    assert (value.grad>0).all()
+    torch.testing.assert_close(value.grad.sum(),torch.tensor(1.))
