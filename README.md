@@ -6,6 +6,7 @@
 
 **Сдаваемое решение — модель [`unrolled/`](unrolled/README.md)**: физически информированная развёрнутая
 сеть на 8 стадий, веса `unrolled/weights/doe_net.pt`. Подробности — в [отчёте](unrolled/REPORT.md).
+Презентация к защите — [`presentation/doe_nn_presentation.pdf`](presentation/doe_nn_presentation.pdf).
 
 ## Сборка и запуск в Docker
 
