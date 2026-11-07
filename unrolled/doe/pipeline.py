@@ -30,8 +30,9 @@ def minmax_loss(recon: torch.Tensor, target: torch.Tensor, sharpness: float = 20
                 ) -> torch.Tensor:
     """−softmin(КК, ИСС): максимизирует худшую из двух метрик (в шкале сохранения PNG)."""
     r = display_norm(recon, target, norm)
-    pcc = pearson_t(r, target).mean()
-    ssim = ssim_map(r, target).mean()
+    t = target if norm == "rms" else target / target.amax(dim=(-2, -1), keepdim=True).clamp_min(1e-8)
+    pcc = pearson_t(r, t).mean()
+    ssim = ssim_map(r, t).mean()
     return torch.logsumexp(torch.stack([-pcc, -ssim]) * sharpness, 0) / sharpness
 
 
@@ -61,7 +62,8 @@ ALPHA_GRID = (0.0, 0.25, 0.5, 0.75, 1.0)
 
 @torch.no_grad()
 def nn_auto_alpha(model: DOENet, system: FresnelSystem, target: torch.Tensor,
-                  grid: tuple[float, ...] = ALPHA_GRID, norm: str = "max") -> tuple[torch.Tensor, float]:
+                  grid: tuple[float, ...] = ALPHA_GRID, norm: str = "max", select: str = "min"
+                  ) -> tuple[torch.Tensor, float]:
     """Один батч-проход сети при нескольких α; выбирается ДОЭ с максимальным min(КК, ИСС).
 
     Цели известны на этапе синтеза (это входные изображения), поэтому выбор делается по
@@ -75,7 +77,10 @@ def nn_auto_alpha(model: DOENet, system: FresnelSystem, target: torch.Tensor,
     rec = system.reconstruct(system.to_dechirped(phi))
     tq = torch.round(t * 255) / 255
     rec = torch.round(display_norm(rec, tq, "rms" if norm == "rms" else "max") * 255) / 255
-    score = torch.minimum(pearson_t(rec, tq).mean(1), ssim_map(rec, tq).mean(dim=(-3, -2, -1)))
+    if norm != "rms":
+        tq = tq / tq.amax(dim=(-2, -1), keepdim=True).clamp_min(1e-8)
+    pcc, ssim = pearson_t(rec, tq).mean(1), ssim_map(rec, tq).mean(dim=(-3, -2, -1))
+    score = torch.minimum(pcc, ssim) if select == "min" else pcc + ssim
     best = int(torch.argmax(score))
     return psi[best:best + 1], float(grid[best])
 
@@ -92,7 +97,8 @@ class Result:
 
 def synthesize(images: list[np.ndarray], method: str = "nn", model: DOENet | None = None,
                alpha: float | str = 0.5, refine_iters: int = 0, gs_iters: int = 200, norm: str = "max",
-               device: str = "cpu", system: FresnelSystem | None = None, objective: str = "tradeoff") -> Result:
+               device: str = "cpu", system: FresnelSystem | None = None, objective: str = "tradeoff",
+               select: str = "min") -> Result:
     """alpha — число из [0, 1] или "auto" (выбор по min(КК, ИСС), только для method="nn")."""
     system = system or FresnelSystem().to(device)
     target = torch.tensor(np.stack(images)[None] / 255.0, dtype=torch.float32, device=device)
@@ -107,7 +113,7 @@ def synthesize(images: list[np.ndarray], method: str = "nn", model: DOENet | Non
         if model is None:
             raise ValueError("нужна модель")
         if alpha == "auto":
-            psi, alpha = nn_auto_alpha(model, system, target, norm=norm)
+            psi, alpha = nn_auto_alpha(model, system, target, norm=norm, select=select)
         else:
             with torch.no_grad():
                 psi = model.synthesize(target, system, float(alpha))

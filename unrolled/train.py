@@ -110,6 +110,8 @@ def evaluate(model, system, targets: torch.Tensor, alpha: float, bs: int = 32, n
         phi = torch.round((phi + math.pi) / (2 * math.pi) * 255) / 255 * 2 * math.pi - math.pi
         rec = system.reconstruct(system.to_dechirped(phi))
         tq = torch.round(t * 255) / 255
+        if norm != "rms":  # официальное правило: исходное тоже нормируется на максимум
+            tq = tq / tq.amax(dim=(-2, -1), keepdim=True).clamp_min(1e-8)
         if norm == "rms":
             k = tq.pow(2).mean(dim=(-2, -1), keepdim=True).sqrt() / rec.pow(2).mean(dim=(-2, -1), keepdim=True).sqrt()
             rec = torch.round((rec * k).clamp(max=1.0) * 255) / 255

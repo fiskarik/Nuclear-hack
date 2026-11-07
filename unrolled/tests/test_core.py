@@ -53,3 +53,14 @@ def test_metrics_identity_and_skimage():
     assert ssim(a, b) == pytest.approx(ref, abs=1e-9)
     assert pearson(a, b) == pytest.approx(np.corrcoef(a.ravel(), b.ravel())[0, 1])
     assert ssim_7x7(a, b) == pytest.approx(skm.structural_similarity(a, b, data_range=255), abs=1e-9)
+
+
+def test_evaluate_normalizes_both_images_to_max():
+    """Правило организаторов: перед сравнением каждое изображение нормируется на максимум."""
+    from doe.metrics import evaluate
+    rng = np.random.default_rng(1)
+    a = rng.integers(0, 256, (128, 128)).astype(np.float64)
+    dim = np.round(a * 0.5).astype(np.uint8)          # тот же объект, но максимум ≈ 128
+    row = evaluate([dim], [a.astype(np.uint8)])[0]
+    assert row["pearson"] == pytest.approx(1.0, abs=1e-3)
+    assert row["ssim"] > 0.99 and row["ssim_7x7"] > 0.99

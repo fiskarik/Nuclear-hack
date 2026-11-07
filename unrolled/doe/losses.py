@@ -85,9 +85,11 @@ def tradeoff_loss(recon: torch.Tensor, target: torch.Tensor, alpha: torch.Tensor
     """
     rs = display_norm(recon, target, ssim_norm)
     r = rs if ssim_norm == "rms" else fit_scale(recon, target)
+    # официальное правило: исходное тоже нормируется на максимум перед сравнением (для ИСС)
+    t_ssim = target if ssim_norm == "rms" else target / target.amax(dim=(-2, -1), keepdim=True).clamp_min(1e-8)
     mse = ((r - target).pow(2).mean(dim=(-2, -1)) / target.pow(2).mean(dim=(-2, -1)).clamp_min(1e-6)).mean(1)
     pcc = pearson_t(rs if ssim_norm == "rms" else recon, target).mean(1)
-    ssim = ssim_map(rs, target).mean(dim=(-3, -2, -1))
+    ssim = ssim_map(rs, t_ssim).mean(dim=(-3, -2, -1))
     a = alpha.to(recon.dtype)
     loss = ((1 - a) * (1 - pcc) + a * (1 - ssim) + w_mse * mse).mean()
     return {"loss": loss, "mse": mse.mean().detach(), "pcc": pcc.mean().detach(), "ssim": ssim.mean().detach()}
@@ -97,7 +99,8 @@ def minmax_term(recon: torch.Tensor, target: torch.Tensor, sharpness: float = 20
                 ) -> torch.Tensor:
     """1 − softmin(КК, ИСС) для каждого примера (в шкале сохранения PNG), среднее по батчу."""
     r = display_norm(recon, target, norm)
-    pcc = pearson_t(r, target).mean(1)
-    ssim = ssim_map(r, target).mean(dim=(-3, -2, -1))
+    t = target if norm == "rms" else target / target.amax(dim=(-2, -1), keepdim=True).clamp_min(1e-8)
+    pcc = pearson_t(r, t).mean(1)
+    ssim = ssim_map(r, t).mean(dim=(-3, -2, -1))
     soft_min = -torch.logsumexp(torch.stack([-pcc, -ssim]) * sharpness, 0) / sharpness
     return (1 - soft_min).mean()
