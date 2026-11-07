@@ -365,7 +365,10 @@ def collect_images(root: str, include: tuple[str, ...], exclude: tuple[str, ...]
     """Пути к jpg/png под root, в полном пути которых есть одна из подстрок include и нет exclude."""
     exts = (".jpg", ".jpeg", ".png")
     out = []
-    for d, _, files in os.walk(root, followlinks=True):
+    for d, dirs, files in os.walk(root, followlinks=True):
+        # большие деревья символов (kkanji, CASIA) не обходим, если их не просили явно
+        dirs[:] = [x for x in dirs if not any(t in x.lower() for t in _GLYPH_TREES)
+                   or any(t in x.lower() for t in include)]
         low = d.lower()
         if not any(t in low for t in include) or any(t in low for t in exclude):
             continue
@@ -419,6 +422,160 @@ def real_image(rng: random.Random, pool: list) -> np.ndarray:
     return _photometric(rng, np.asarray(img, np.float32) / 255.0, invert_p=0.08)
 
 
+# Символы и силуэты (EMNIST, Fashion-MNIST, Kuzushiji-49, Kuzushiji-Kanji, CASIA-HWDB): яркий объект на тёмном
+# фоне, мелкие массивы uint8. Заполняются до создания пула процессов, как и _PHOTOS.
+_GLYPHS: list = []
+_GLYPH_TREES = ("kkanji", "casia-hwdb", "hwdb")
+_SKIP_TREES = ("lfw", "imagenette", "dtd", "bsds", "bsr")
+
+
+def _read_idx(path: str) -> np.ndarray | None:
+    """Изображения в формате IDX (MNIST): 16 байт заголовка, затем N×H×W uint8."""
+    with open(path, "rb") as f:
+        head = f.read(16)
+        if len(head) < 16 or head[2] != 8 or head[3] != 3:
+            return None
+        n, h, w = (int.from_bytes(head[4 + 4 * i: 8 + 4 * i], "big") for i in range(3))
+        a = np.frombuffer(f.read(n * h * w), np.uint8)
+    a = a[: (a.size // (h * w)) * h * w].reshape(-1, h, w)
+    return a.transpose(0, 2, 1) if "emnist" in os.path.basename(path).lower() else a
+
+
+def find_glyph_sources(root: str) -> tuple[list[str], list[str]]:
+    """Файлы IDX/NPZ символьных датасетов и корни PNG-деревьев (kkanji, CASIA) под root."""
+    files, trees = [], []
+    for d, dirs, names in os.walk(root, followlinks=True):
+        if any(t in os.path.basename(d).lower() for t in _GLYPH_TREES):
+            trees.append(d)
+            dirs[:] = []
+            continue
+        dirs[:] = [x for x in dirs if not any(t in x.lower() for t in _SKIP_TREES)]
+        for f in names:
+            fl = f.lower()
+            if fl.endswith("images-idx3-ubyte") and ("emnist" not in fl or "emnist-balanced" in fl):
+                files.append(os.path.join(d, f))
+            elif fl.endswith("-imgs.npz"):
+                files.append(os.path.join(d, f))
+    return sorted(set(files)), sorted(set(trees))
+
+
+def _is_test(path: str) -> bool:
+    name = os.path.basename(path).lower()
+    return "test" in name or "t10k" in name
+
+
+def _sample_tree(root: str, limit: int, rng: random.Random, per_dir: int = 3) -> list[str]:
+    """До limit PNG из дерева «класс/файл»: обход в случайном порядке, не больше per_dir из папки."""
+    out = []
+    for d, dirs, names in os.walk(root, followlinks=True):
+        rng.shuffle(dirs)
+        pngs = [n for n in names if n.lower().endswith(".png")]
+        rng.shuffle(pngs)
+        out += [os.path.join(d, n) for n in pngs[:per_dir]]
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _bright_on_dark(a: np.ndarray) -> np.ndarray | None:
+    if a is None or a.size == 0 or a.max() == a.min():
+        return None
+    border = np.concatenate([a[0], a[-1], a[:, 0], a[:, -1]]).astype(np.float32).mean()
+    return np.ascontiguousarray(255 - a if border > 127 else a)
+
+
+def _load_glyph_png(path: str) -> np.ndarray | None:
+    try:
+        a = np.asarray(Image.open(path).convert("L"), np.uint8)
+    except Exception:
+        return None
+    return _bright_on_dark(a)
+
+
+def load_glyphs(roots: list[str], per_source: int = 40000, seed: int = 0,
+                workers: int = 1) -> tuple[int, list]:
+    """Заполняет _GLYPHS обучающими символами; возвращает (их число, отложенные символы для контроля).
+
+    Обучающая часть — train-файлы IDX/NPZ и 95 % PNG; контроль — test-файлы и остальные 5 % PNG.
+    """
+    global _GLYPHS
+    rng = random.Random(seed)
+    train, test = [], []
+    for r in roots:
+        files, trees = find_glyph_sources(r)
+        for f in files:
+            try:
+                a = _read_idx(f) if "idx3" in f.lower() else np.load(f, allow_pickle=False)["arr_0"]
+            except Exception:
+                continue
+            if a is None or a.ndim != 3:
+                continue
+            idx = rng.sample(range(len(a)), min(len(a), per_source))
+            items = [np.ascontiguousarray(a[i]) for i in idx]
+            (test if _is_test(f) else train).extend(g for g in items if g.max() > g.min())
+            print(f"символы: {os.path.basename(f)} → {len(items)}", flush=True)
+        for t in trees:
+            paths = _sample_tree(t, per_source // 2, rng)
+            if workers > 1:
+                from multiprocessing import Pool
+
+                with Pool(workers) as pool:
+                    arrs = pool.map(_load_glyph_png, paths, chunksize=64)
+            else:
+                arrs = [_load_glyph_png(p) for p in paths]
+            for i, a in enumerate(arrs):
+                if a is not None:
+                    (test if i % 20 == 0 else train).append(a)
+            print(f"символы: {t} → {len(paths)}", flush=True)
+    _GLYPHS = train
+    return len(train), test
+
+
+def _glyph_patch(rng: random.Random, g: np.ndarray, size: int) -> np.ndarray:
+    """Символ в квадрате size×size с сохранением пропорций."""
+    h, w = g.shape
+    k = size / max(h, w)
+    nh, nw = max(1, int(round(h * k))), max(1, int(round(w * k)))
+    im = Image.fromarray(g, "L").resize((nw, nh), Image.BICUBIC if k > 1 else Image.LANCZOS)
+    out = np.zeros((size, size), np.float32)
+    y, x = (size - nh) // 2, (size - nw) // 2
+    out[y:y + nh, x:x + nw] = np.asarray(im, np.float32) / 255.0
+    return out
+
+
+def glyph_image(rng: random.Random, pool: list) -> np.ndarray:
+    """Сцена 128×128 из символов: один крупный, несколько разбросанных или строки «текста»."""
+    canvas = np.zeros((SIZE, SIZE), np.float32)
+    r = rng.random()
+    if r < 0.4:
+        s = rng.randint(64, 124)
+        p = _glyph_patch(rng, pool[rng.randrange(len(pool))], s)
+        y, x = rng.randint(0, SIZE - s), rng.randint(0, SIZE - s)
+        canvas[y:y + s, x:x + s] = p
+    elif r < 0.75:
+        for _ in range(rng.randint(2, 7)):
+            s = rng.randint(24, 72)
+            p = _glyph_patch(rng, pool[rng.randrange(len(pool))], s)
+            y, x = rng.randint(0, SIZE - s), rng.randint(0, SIZE - s)
+            canvas[y:y + s, x:x + s] = np.maximum(canvas[y:y + s, x:x + s], p)
+    else:
+        rows = rng.randint(1, 3)
+        s = rng.randint(22, min(44, SIZE // rows))
+        cols = rng.randint(2, max(2, SIZE // s))
+        y0 = rng.randint(0, SIZE - rows * s)
+        for i in range(rows):
+            x0 = rng.randint(0, SIZE - cols * s)
+            for j in range(cols):
+                p = _glyph_patch(rng, pool[rng.randrange(len(pool))], s)
+                y, x = y0 + i * s, x0 + j * s
+                canvas[y:y + s, x:x + s] = np.maximum(canvas[y:y + s, x:x + s], p)
+    if rng.random() < 0.3:  # резкие края вместо размытого увеличения 28 → 128
+        canvas = np.clip((canvas - 0.3) / 0.4, 0, 1)
+    if canvas.max() <= 0:
+        canvas[rng.randrange(SIZE), rng.randrange(SIZE)] = 1.0
+    return _photometric(rng, canvas, invert_p=0.1)
+
+
 def build_bank(count: int, seed: int = 0, workers: int = 0, texture_frac: float = 0.0,
                texture_split: str = "train", mix: tuple[float, ...] | None = None) -> np.ndarray:
     """Банк изображений (count,128,128) uint8; из него собираются четвёрки.
@@ -447,15 +604,15 @@ def _split(total: int, parts: int) -> list[int]:
 
 def _bank_chunk(count: int, seed: int, mix: tuple[float, ...] = (1.0, 0.0, 0.0, 0.0),
                 texture_split: str = "train") -> np.ndarray:
-    """mix: (синтетика, текстуры 128, текстуры 512, CIFAR-10[, реальные фото, реальные текстуры])."""
+    """mix: (синтетика, текстуры 128, текстуры 512, CIFAR-10[, реальные фото, реальные текстуры, символы])."""
     rng = random.Random(seed)
     nrng = np.random.default_rng(seed)
-    mix = tuple(mix) + (0.0,) * (6 - len(mix))
+    mix = tuple(mix) + (0.0,) * (7 - len(mix))
     tex = load_textures(texture_split) if mix[1] > 0 else np.zeros((0,))
     tex512 = load_cache("textures512", texture_split) if mix[2] > 0 else np.zeros((0,))
     cifar = load_cache("cifar_gray", texture_split) if mix[3] > 0 else np.zeros((0,))
     avail = [mix[0], mix[1] if len(tex) else 0.0, mix[2] if len(tex512) else 0.0, mix[3] if len(cifar) else 0.0,
-             mix[4] if _PHOTOS else 0.0, mix[5] if _REALTEX else 0.0]
+             mix[4] if _PHOTOS else 0.0, mix[5] if _REALTEX else 0.0, mix[6] if _GLYPHS else 0.0]
     avail[0] += sum(mix) - sum(avail)  # недоступные источники → синтетика
     cum = np.cumsum(avail) / max(sum(avail), 1e-9)
     out = []
@@ -471,6 +628,8 @@ def _bank_chunk(count: int, seed: int, mix: tuple[float, ...] = (1.0, 0.0, 0.0, 
             out.append(cifar_image(rng, cifar))
         elif r < cum[4]:
             out.append(real_image(rng, _PHOTOS))
-        else:
+        elif r < cum[5]:
             out.append(real_image(rng, _REALTEX))
+        else:
+            out.append(glyph_image(rng, _GLYPHS))
     return np.stack(out, 0)

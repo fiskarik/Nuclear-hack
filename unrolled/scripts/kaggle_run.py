@@ -42,22 +42,31 @@ tarfile.open(fileobj=io.BytesIO(base64.b64decode(PAYLOAD)), mode="r:gz").extract
 os.chdir(SRC)
 # подключённые Kaggle-датасеты с кэшами (textures512.npz, cifar_gray.npz) → data/cache
 os.makedirs("data/cache", exist_ok=True)
-for root, _, files in os.walk("/kaggle/input"):
+HEAVY = ("kkanji", "casia", "hwdb", "lfw")  # большие деревья мелких файлов: не обходим здесь
+
+
+def walk(top):
+    for root, dirs, files in os.walk(top):
+        dirs[:] = [d for d in dirs if not any(h in d.lower() for h in HEAVY)]
+        yield root, dirs, files
+
+
+for root, _, files in walk("/kaggle/input"):
     for f in files:
         if f.endswith(".npz") and not os.path.exists(os.path.join("data/cache", f)):
             os.symlink(os.path.join(root, f), os.path.join("data/cache", f))
 print("cache:", os.listdir("data/cache"), flush=True)
 # подключённые веса (*.pt) → weights/ (для дообучения: --init weights/<имя>.pt)
 os.makedirs("weights", exist_ok=True)
-for root, _, files in os.walk("/kaggle/input"):
+for root, _, files in walk("/kaggle/input"):
     for f in files:
         if f.endswith(".pt") and not os.path.exists(os.path.join("weights", f)):
             os.symlink(os.path.join(root, f), os.path.join("weights", f))
 print("weights:", os.listdir("weights"), flush=True)
 # архивы в подключённых датасетах (например, imagenette-160.tgz) → /kaggle/tmp/extracted
-for root, _, files in os.walk("/kaggle/input"):
+for root, _, files in walk("/kaggle/input"):
     for f in files:
-        if f.endswith((".tgz", ".tar.gz", ".tar")):
+        if f.endswith((".tgz", ".tar.gz", ".tar")) and not any(h in f.lower() for h in HEAVY):
             dst = os.path.join("/kaggle/tmp/extracted", f.split(".")[0])
             os.makedirs(dst, exist_ok=True)
             try:

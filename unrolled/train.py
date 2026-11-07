@@ -11,6 +11,7 @@ import argparse
 import json
 import math
 import os
+import random
 import time
 from pathlib import Path
 
@@ -19,7 +20,7 @@ import torch
 from PIL import Image
 
 from doe import data as doe_data
-from doe.data import build_bank, collect_images, load_cache, load_real_images, load_textures
+from doe.data import build_bank, collect_images, glyph_image, load_cache, load_glyphs, load_real_images, load_textures
 from doe.imageio import load_gray
 from doe.losses import hotspot_penalty, minmax_term, pearson_t, ssim_map, tradeoff_loss
 from doe.model import DOENet, count_params, load_expanded
@@ -36,7 +37,8 @@ def parse():
     ap.add_argument("--wd", type=float, default=1e-5)
     ap.add_argument("--bank", type=int, default=60000, help="размер банка синтетических изображений")
     ap.add_argument("--mix", default="0.35,0.15,0.30,0.20",
-                    help="доли источников банка: синтетика, текстуры 128, фрагменты текстур 512, CIFAR-10 "
+                    help="доли источников банка: синтетика, текстуры 128, фрагменты текстур 512, CIFAR-10"
+                         "[, фото, текстуры DTD, символы — нужен --real-root] "
                          "(текстуры 512 и CIFAR берутся из data/cache, см. scripts/prepare_data.py)")
     ap.add_argument("--ssim-norm", choices=["fit", "max", "rms"], default="max",
                     help="нормировка восстановления в ИСС-части потерь (max — как при сохранении PNG)")
@@ -140,17 +142,21 @@ def main():
 
     t0 = time.time()
     mix = tuple(float(v) for v in args.mix.split(","))
-    kodak = []
+    kodak, glyph_test = [], []
     if args.real_root:
         roots = [r for r in args.real_root.split(",") if r and os.path.isdir(r)]
         photos, realtex = [], []
         for r in roots:
             photos += collect_images(r, ("imagenette",), limit=8000)
             photos += collect_images(r, ("bsds", "berkeley", "bsr"), ("groundtruth", "ground_truth"))
+            photos += collect_images(r, ("lfw",), limit=6000, seed=1)
             realtex += collect_images(r, ("dtd",))
             kodak += collect_images(r, ("kodak",))
         n_ph, n_tx = load_real_images(photos, realtex, workers=args.workers)
         print(f"реальные изображения: фото {n_ph}, текстуры DTD {n_tx}, Kodak (контроль) {len(kodak)}", flush=True)
+        if len(mix) > 6 and mix[6] > 0:
+            n_gl, glyph_test = load_glyphs(roots, workers=args.workers)
+            print(f"символы: обучение {n_gl}, контроль {len(glyph_test)}", flush=True)
     bank = build_bank(args.bank, seed=args.seed + 1, workers=args.workers, mix=mix)
     val_bank = build_bank(256, seed=987654)
     vrng = np.random.default_rng(4242)
@@ -170,6 +176,10 @@ def main():
             crops.append(a[y:y + 128, x:x + 128])
         crops = np.stack(crops)
         val_sets["kodak"] = torch.tensor(crops.reshape(64, 4, 128, 128) / 255.0, dtype=torch.float32)
+    if glyph_test:
+        grng = random.Random(4243)
+        gimgs = np.stack([glyph_image(grng, glyph_test) for _ in range(256)])
+        val_sets["glyph"] = torch.tensor(gimgs.reshape(64, 4, 128, 128) / 255.0, dtype=torch.float32)
     cifar_test = load_cache("cifar_gray", "test")
     if len(cifar_test):
         up = np.stack([np.asarray(Image.fromarray(c).resize((128, 128), Image.BICUBIC)) for c in cifar_test[:256]])

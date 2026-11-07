@@ -22,13 +22,15 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from doe.data import build_bank, load_cache, load_textures  # noqa: E402
+import random  # noqa: E402
+
+from doe.data import build_bank, glyph_image, load_cache, load_glyphs, load_textures  # noqa: E402
 from doe.imageio import load_gray  # noqa: E402
 from doe.physics import FresnelSystem  # noqa: E402
 from doe.pipeline import load_model, synthesize  # noqa: E402
 
 
-def groups(n: int, expert_dir: str | None) -> dict[str, list[list[np.ndarray]]]:
+def groups(n: int, expert_dir: str | None, glyph_root: str | None = None) -> dict[str, list[list[np.ndarray]]]:
     rng = np.random.default_rng(2026)
     out = {}
     tex = load_textures("test")
@@ -40,6 +42,11 @@ def groups(n: int, expert_dir: str | None) -> dict[str, list[list[np.ndarray]]]:
         out["CIFAR-10 (отлож.)"] = [[up(cif[j]) for j in rng.choice(len(cif), 4, replace=False)] for _ in range(n)]
     synth = build_bank(n * 4, seed=31337)
     out["синтетика"] = [list(synth[i * 4:(i + 1) * 4]) for i in range(n)]
+    if glyph_root and os.path.isdir(glyph_root):
+        _, gtest = load_glyphs([glyph_root], per_source=5000)
+        if gtest:
+            grng = random.Random(2027)
+            out["символы (отлож.)"] = [[glyph_image(grng, gtest) for _ in range(4)] for _ in range(n)]
     if expert_dir and os.path.isdir(expert_dir):
         cases = sorted(glob.glob(os.path.join(expert_dir, "case_*")))
         out["кейсы экспертов"] = [[load_gray(f"{c}/input/target_{i}.png") for i in range(1, 5)] for c in cases]
@@ -53,6 +60,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--weights", nargs="+", required=True, help="имя=путь")
     ap.add_argument("--expert-dir")
+    ap.add_argument("--glyph-root", help="test-файлы EMNIST/Fashion-MNIST/Kuzushiji (IDX/NPZ) для группы «символы»")
     ap.add_argument("--n", type=int, default=24)
     ap.add_argument("--select", choices=["weighted", "min", "sum"], default="weighted")
     ap.add_argument("--alpha", default="fast", help="fast | auto | число 0…1")
@@ -62,7 +70,7 @@ def main():
     a = ap.parse_args()
     torch.set_num_threads(os.cpu_count() or 4)
     system = FresnelSystem()
-    gs = groups(a.n, a.expert_dir)
+    gs = groups(a.n, a.expert_dir, a.glyph_root)
     table = {}
     for spec in a.weights:
         name, path = spec.split("=", 1)
