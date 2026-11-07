@@ -55,8 +55,10 @@ def main():
                          "ДОЭ с максимальным min(КК, ИСС) по физической модели")
     ap.add_argument("--refine", type=int, default=0,
                     help="число итераций дополнительной градиентной доводки после сети (0 — чистая сеть)")
-    ap.add_argument("--select", choices=["min", "sum"], default="min",
-                    help="критерий --alpha auto: min — максимум min(КК, ИСС); sum — максимум КК + ИСС")
+    ap.add_argument("--select", choices=["weighted", "min", "sum"], default="weighted",
+                    help="критерий --alpha auto: weighted — максимум (1−w)·КК + w·ИСС (по умолчанию, w=0,65: "
+                         "метрики оцениваются независимо, ИСС чуть важнее); min — максимум min(КК, ИСС); sum")
+    ap.add_argument("--ssim-weight", type=float, default=0.65, help="вес ИСС для --select weighted")
     ap.add_argument("--objective", choices=["tradeoff", "minmax"], default="minmax",
                     help="цель доводки: minmax — максимум худшей из метрик, tradeoff — взвешенная по α")
     ap.add_argument("--gs-iters", type=int, default=200)
@@ -75,7 +77,7 @@ def main():
         synthesize(images, "nn", model, 0.5, device=args.device)
     res = synthesize(images, args.method, model, alpha=args.alpha, refine_iters=args.refine,
                      gs_iters=args.gs_iters, norm=args.norm, device=args.device, objective=args.objective,
-                     select=args.select)
+                     select=args.select, ssim_weight=args.ssim_weight)
     save_result(res, args.out, images)
 
     print(f"Метод: {args.method}" + (f" (α={res.alpha:g}{' — выбрано автоматически' if args.alpha == 'auto' else ''}, "

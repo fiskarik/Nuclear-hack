@@ -44,14 +44,14 @@ def unit(z: torch.Tensor, eps: float = 1e-6) -> torch.Tensor:
 
 
 class ConvBlock(nn.Module):
-    def __init__(self, cin: int, cout: int):
+    def __init__(self, cin: int, cout: int, pad: str = "circular"):
         super().__init__()
         groups = 8 if cout % 8 == 0 else 1
         self.net = nn.Sequential(
-            nn.Conv2d(cin, cout, 3, padding=1, padding_mode="circular"),
+            nn.Conv2d(cin, cout, 3, padding=1, padding_mode=pad),
             nn.GroupNorm(groups, cout),
             nn.SiLU(inplace=True),
-            nn.Conv2d(cout, cout, 3, padding=1, padding_mode="circular"),
+            nn.Conv2d(cout, cout, 3, padding=1, padding_mode=pad),
             nn.GroupNorm(groups, cout),
             nn.SiLU(inplace=True),
         )
@@ -62,18 +62,18 @@ class ConvBlock(nn.Module):
 
 
 class UNet(nn.Module):
-    def __init__(self, cin: int, cout: int, base: int = 32, depth: int = 4):
+    def __init__(self, cin: int, cout: int, base: int = 32, depth: int = 4, pad: str = "circular"):
         super().__init__()
         chs = [base * 2 ** i for i in range(depth)]
-        self.inc = ConvBlock(cin, chs[0])
+        self.inc = ConvBlock(cin, chs[0], pad)
         self.downs = nn.ModuleList()
         self.ups = nn.ModuleList()
         self.up_convs = nn.ModuleList()
         for i in range(1, depth):
-            self.downs.append(nn.Sequential(nn.AvgPool2d(2), ConvBlock(chs[i - 1], chs[i])))
+            self.downs.append(nn.Sequential(nn.AvgPool2d(2), ConvBlock(chs[i - 1], chs[i], pad)))
         for i in range(depth - 1, 0, -1):
             self.ups.append(nn.Upsample(scale_factor=2, mode="bilinear", align_corners=False))
-            self.up_convs.append(ConvBlock(chs[i] + chs[i - 1], chs[i - 1]))
+            self.up_convs.append(ConvBlock(chs[i] + chs[i - 1], chs[i - 1], pad))
         self.out = nn.Conv2d(chs[0], cout, 1)
         nn.init.zeros_(self.out.weight)
         nn.init.zeros_(self.out.bias)
@@ -96,17 +96,18 @@ def forward_unit(system: FresnelSystem, slm: torch.Tensor) -> torch.Tensor:
 
 class DOENet(nn.Module):
     def __init__(self, num_planes: int = 4, base: int = 32, depth: int = 4, stages: int = 4,
-                 stage_base: int = 24, stage_depth: int = 3, grad_feat: bool = False):
+                 stage_base: int = 24, stage_depth: int = 3, grad_feat: bool = False, pad: str = "circular"):
         super().__init__()
         p = num_planes
         self.config = dict(num_planes=p, base=base, depth=depth, stages=stages,
-                           stage_base=stage_base, stage_depth=stage_depth, grad_feat=grad_feat)
+                           stage_base=stage_base, stage_depth=stage_depth, grad_feat=grad_feat, pad=pad)
         self.num_planes = p
         self.grad_feat = grad_feat  # подавать стадиям ∂L/∂|F_i| — «обучаемый градиентный спуск»
         self.use_amp = False  # fp16 только для свёрток (FFT всегда в fp32)
-        self.init_net = UNet(p + 1, 2 * p, base, depth)
+        # pad="zeros" заметно быстрее на GPU: круговой паддинг копирует каждый вход свёртки
+        self.init_net = UNet(p + 1, 2 * p, base, depth, pad)
         cin = (4 if grad_feat else 3) * p + 1
-        self.stage_nets = nn.ModuleList([UNet(cin, 3 * p, stage_base, stage_depth) for _ in range(stages)])
+        self.stage_nets = nn.ModuleList([UNet(cin, 3 * p, stage_base, stage_depth, pad) for _ in range(stages)])
         # стартовое смещение «маски свободы амплитуды»: σ(−3) ≈ 0.05
         for net in self.stage_nets:
             nn.init.constant_(net.out.bias[p:2 * p], -3.0)
@@ -177,3 +178,22 @@ class DOENet(nn.Module):
 
 def count_params(model: nn.Module) -> int:
     return sum(p.numel() for p in model.parameters())
+
+
+def load_expanded(model: DOENet, state: dict) -> str:
+    """Загружает веса обученной сети в сеть с бо́льшим числом стадий.
+
+    Лишние стадии инициализируются копиями обученных по кругу (k ← k mod K_old),
+    то есть новая сеть сначала повторяет обученный цикл уточнений.
+    """
+    old_k = 1 + max(int(k.split(".")[1]) for k in state if k.startswith("stage_nets."))
+    new_state = {}
+    for k, v in model.state_dict().items():
+        if k.startswith("stage_nets."):
+            i = int(k.split(".")[1])
+            src = "stage_nets.%d.%s" % (i % old_k, k.split(".", 2)[2])
+            new_state[k] = state[src]
+        else:
+            new_state[k] = state[k]
+    model.load_state_dict(new_state)
+    return f"стадии: {old_k} → {len(model.stage_nets)}"

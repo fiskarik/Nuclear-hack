@@ -21,7 +21,7 @@ from PIL import Image
 from doe.data import build_bank, load_cache, load_textures
 from doe.imageio import load_gray
 from doe.losses import minmax_term, pearson_t, ssim_map, tradeoff_loss
-from doe.model import DOENet, count_params
+from doe.model import DOENet, count_params, load_expanded
 from doe.physics import FresnelSystem
 
 
@@ -46,6 +46,8 @@ def parse():
     ap.add_argument("--stage-base", type=int, default=24)
     ap.add_argument("--stage-depth", type=int, default=3)
     ap.add_argument("--grad-feat", action="store_true", help="подавать стадиям градиент потерь ∂L/∂|F_i|")
+    ap.add_argument("--pad", choices=["circular", "zeros"], default="circular",
+                    help="паддинг свёрток; zeros быстрее на GPU (без копий входов)")
     ap.add_argument("--deep-sup", type=float, default=0.2, help="вес потерь промежуточных стадий")
     ap.add_argument("--w-mse", type=float, default=0.1)
     ap.add_argument("--w-minmax", type=float, default=0.0,
@@ -154,14 +156,15 @@ def main():
     del bank
     system = FresnelSystem().to(dev)
     model = DOENet(base=args.base, depth=args.depth, stages=args.stages,
-                   stage_base=args.stage_base, stage_depth=args.stage_depth, grad_feat=args.grad_feat).to(dev)
+                   stage_base=args.stage_base, stage_depth=args.stage_depth, grad_feat=args.grad_feat,
+                   pad=args.pad).to(dev)
     model.use_amp = args.amp
     if args.init:
         ck = torch.load(args.init, map_location=dev, weights_only=False)
-        model.load_state_dict(ck["model"])
-        print(f"инициализация весами {args.init} (шаг {ck.get('step')})", flush=True)
+        note = load_expanded(model, ck["model"])
+        print(f"инициализация весами {args.init} (шаг {ck.get('step')}), {note}", flush=True)
     print(f"параметров: {count_params(model):,}", flush=True)
-    opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.wd)
+    opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.wd, fused=(dev == "cuda"))
     scaler = torch.amp.GradScaler("cuda", enabled=args.amp and dev == "cuda")
     step, best = 0, -1e9
     if args.resume and Path(args.resume).exists():

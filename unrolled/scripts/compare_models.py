@@ -54,7 +54,7 @@ def main():
     ap.add_argument("--weights", nargs="+", required=True, help="имя=путь")
     ap.add_argument("--expert-dir")
     ap.add_argument("--n", type=int, default=24)
-    ap.add_argument("--select", choices=["min", "sum"], default="min")
+    ap.add_argument("--select", choices=["weighted", "min", "sum"], default="weighted")
     ap.add_argument("--out", default=str(ROOT / "results" / "model_comparison.json"))
     a = ap.parse_args()
     torch.set_num_threads(os.cpu_count() or 4)
