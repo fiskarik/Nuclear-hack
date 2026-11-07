@@ -252,8 +252,8 @@ def main():
         "НС, α=0 (макс. КК)": dict(method="nn", model=model, alpha=0.0),
         "НС, α=0.5": dict(method="nn", model=model, alpha=0.5),
         "НС, α=1 (макс. ИСС)": dict(method="nn", model=model, alpha=1.0),
-        "НС, α=auto (выбор по min(КК, ИСС))": dict(method="nn", model=model, alpha="auto"),
-        "НС α=auto + 100 ит. доводки (minmax)": dict(method="nn", model=model, alpha="auto", refine_iters=100,
+        "НС, α=auto (взвешенный выбор, защита)": dict(method="nn", model=model, alpha="auto"),
+        "НС α=auto + 100 ит. доводки": dict(method="nn", model=model, alpha="auto", refine_iters=100,
                                                       objective="minmax"),
         "ГС, 50 итераций": dict(method="gs", gs_iters=50),
         "ГС, 200 итераций": dict(method="gs", gs_iters=200),
@@ -293,8 +293,8 @@ def main():
         for al, p in zip(alphas, pts):
             ax[gi].annotate(f"α={al}", (p[0], p[1]), fontsize=7, xytext=(3, 3), textcoords="offset points")
         for mname, mk in (("ГС, 200 итераций", "s"), (f"Adam, {a.adam_iters} итераций (minmax)", "^"),
-                          ("НС, α=auto (выбор по min(КК, ИСС))", "*"),
-                          ("НС α=auto + 100 ит. доводки (minmax)", "D")):
+                          ("НС, α=auto (взвешенный выбор, защита)", "*"),
+                          ("НС α=auto + 100 ит. доводки", "D")):
             r = bench[mname][g]
             ax[gi].plot(r["pearson"], r["ssim"], mk, label=mname)
         ax[gi].set_xlabel("КК Пирсона")
