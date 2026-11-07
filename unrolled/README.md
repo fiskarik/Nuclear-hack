@@ -182,6 +182,8 @@ tests/                   проверки физики и метрик (pytest)
 
 ## Обучение
 
+Как продолжить обучение текущей модели (r8) на своём аккаунте Kaggle — в [TRAINING.md](TRAINING.md).
+
 ```bash
 python scripts/prepare_data.py                 # текстуры 512 + CIFAR-10 → data/cache (опционально)
 python train.py --out runs/main --hours 3 --grad-feat   # на GPU добавьте --amp --batch 24 --bank 80000
