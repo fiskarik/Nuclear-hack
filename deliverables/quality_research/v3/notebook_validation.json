@@ -1,0 +1,51 @@
+{
+  "mode": "local quick integration, not GPU quality run",
+  "code_cells_executed": 6,
+  "kernel": "photonics",
+  "embedded_source_matches_repository": true,
+  "cell_logs": [
+    {
+      "execution_count": 1,
+      "text_outputs": [
+        "{'torch': '2.9.1+cpu', 'cuda': False, 'numpy': '2.3.5'}\n"
+      ]
+    },
+    {
+      "execution_count": 2,
+      "text_outputs": [
+        "Run: /workspace/Nuclear-hack/artifacts/notebook-v3-release-validation/notebook-workdir/doe-run-20261106-233820-189687 \nTraining: TrainConfig(epochs=2, batch_size=2, learning_rate=0.001, stages=12, width=12, seed=42, device='auto', threads=2, initial_checkpoint='/workspace/Nuclear-hack/deliverables/quality_research/v3/kaggle/dataset/adaptive-parent.pt', objective='physics', architecture='adaptive', initializer_width=8, initializer_depth=4)\nGPU experiment configuration: TrainConfig(epochs=2, batch_size=2, learning_rate=0.001, stages=12, width=12, seed=42, device='auto', threads=2, initial_checkpoint='/workspace/Nuclear-hack/deliverables/quality_research/v3/kaggle/dataset/adaptive-parent.pt', objective='perceptual', architecture='adaptive', initializer_width=8, initializer_depth=4)\n"
+      ]
+    },
+    {
+      "execution_count": 3,
+      "text_outputs": [
+        "{\n  \"image_counts\": {\n    \"train\": 140,\n    \"validation\": 28,\n    \"test\": 28,\n    \"reserved\": 66\n  },\n  \"families\": {\n    \"train\": [\n      \"Craters\",\n      \"Grainy\",\n      \"Manifold\",\n      \"Marble\",\n      \"Melt\",\n      \"Milky\",\n      \"Spokes\",\n      \"Super Noise\",\n      \"Swirl\",\n      \"Techno\"\n    ],\n    \"validation\": [\n      \"Super Perlin\",\n      \"Turbulence\"\n    ],\n    \"test\": [\n      \"Streak\",\n      \"Vein\"\n    ],\n    \"reserved\": [\n      \"Cracks\",\n      \"Gabor\",\n      \"Perlin\",\n      \"Voronoi\"\n    ]\n  },\n  \"quartets\": {\n    \"train\": 8,\n    \"validation\": 4,\n    \"test\": 4\n  }\n}\n",
+        "device=cpu; train=8 validation=4; initial_val=0.627849\n",
+        "epoch=001 train=0.609378 val=0.631854 best=0.627849\n",
+        "epoch=002 train=0.608057 val=0.632011 best=0.627849\n",
+        "Best validation epoch: 0\n"
+      ]
+    },
+    {
+      "execution_count": 4,
+      "text_outputs": [
+        "{\n  \"neural\": {\n    \"count\": 4,\n    \"mean_pearson\": 0.6197770696461865,\n    \"mean_ssim\": 0.4654598780709155,\n    \"seconds_per_quartet_batched\": 0.09616811525029334\n  },\n  \"untrained_network\": {\n    \"count\": 4,\n    \"mean_pearson\": 0.5529552376758445,\n    \"mean_ssim\": 0.4215016552569999,\n    \"seconds_per_quartet_batched\": 0.0978426572492026\n  },\n  \"gs_12\": {\n    \"count\": 4,\n    \"mean_pearson\": 0.5775504403434787,\n    \"mean_ssim\": 0.4368170711367212,\n    \"seconds_per_quartet_batched\": 0.017076491500120028\n  }\n}\n",
+        "{\n  \"neural\": {\n    \"count\": 4,\n    \"mean_pearson\": 0.6197770696461865,\n    \"mean_ssim\": 0.4654598780709155,\n    \"seconds_per_quartet_batched\": 0.09616811525029334\n  },\n  \"untrained_network\": {\n    \"count\": 4,\n    \"mean_pearson\": 0.5529552376758445,\n    \"mean_ssim\": 0.4215016552569999,\n    \"seconds_per_quartet_batched\": 0.0978426572492026\n  },\n  \"gs_12\": {\n    \"count\": 4,\n    \"mean_pearson\": 0.5775504403434787,\n    \"mean_ssim\": 0.4368170711367212,\n    \"seconds_per_quartet_batched\": 0.017076491500120028\n  }\n}\n",
+        "{\n  \"neural\": {\n    \"count\": 4,\n    \"mean_pearson\": 0.6197770696461865,\n    \"mean_ssim\": 0.4654598780709155,\n    \"seconds_per_quartet_batched\": 0.10983535749983275\n  },\n  \"untrained_network\": {\n    \"count\": 4,\n    \"mean_pearson\": 0.5529552376758445,\n    \"mean_ssim\": 0.4215016552569999,\n    \"seconds_per_quartet_batched\": 0.11133493174929754\n  },\n  \"gs_12\": {\n    \"count\": 4,\n    \"mean_pearson\": 0.5775504403434787,\n    \"mean_ssim\": 0.4368170711367212,\n    \"seconds_per_quartet_batched\": 0.020754817250235646\n  }\n}\n"
+      ]
+    },
+    {
+      "execution_count": 5,
+      "text_outputs": [
+        "[\n  {\n    \"plane\": 1,\n    \"distance_mm\": 24.1,\n    \"output_pixel_pitch_um\": 10.016562500000001,\n    \"amplitude_peak_before_display_scaling\": 2.1589672565460205,\n    \"pearson\": 0.1450110587188477,\n    \"ssim\": 0.1354265834968217\n  },\n  {\n    \"plane\": 2,\n    \"distance_mm\": 25.3,\n    \"output_pixel_pitch_um\": 10.5153125,\n    \"amplitude_peak_before_display_scaling\": 1.8073089122772217,\n    \"pearson\": 0.6052160815858367,\n    \"ssim\": 0.5654763095059041\n  },\n  {\n    \"plane\": 3,\n    \"distance_mm\": 26.5,\n    \"output_pixel_pitch_um\": 11.014062500000001,\n    \"amplitude_peak_before_display_scaling\": 1.5827736854553223,\n    \"pearson\": 0.15342967664805895,\n    \"ssim\": 0.10666934533983441\n  },\n  {\n    \"plane\": 4,\n    \"distance_mm\": 27.7,\n    \"output_pixel_pitch_um\": 11.5128125,\n    \"amplitude_peak_before_display_scaling\": 1.6087894439697266,\n    \"pearson\": 0.5452698715131963,\n    \"ssim\": 0.37956471483149307\n  }\n]\n",
+        "{\n  \"reports\": \"/workspace/Nuclear-hack/artifacts/notebook-v3-release-validation/notebook-workdir/doe-run-20261106-233820-189687/reports\",\n  \"comparisons\": [\n    {\n      \"case\": \"independent_test_mean\",\n      \"before_pearson\": 0.6197770696461865,\n      \"after_pearson\": 0.6197770696461865,\n      \"delta_pearson\": 0.0,\n      \"before_ssim\": 0.4654598780709155,\n      \"after_ssim\": 0.4654598780709155,\n      \"delta_ssim\": 0.0\n    },\n    {\n      \"case\": \"reserved_user_quartet_mean\",\n      \"before_pearson\": 0.3622316721164849,\n      \"after_pearson\": 0.3622316721164849,\n      \"delta_pearson\": 0.0,\n      \"before_ssim\": 0.2967842382935133,\n      \"after_ssim\": 0.2967842382935133,\n      \"delta_ssim\": 0.0\n    },\n    {\n      \"case\": \"reserved_z_24.1_mm\",\n      \"before_pearson\": 0.1450110587188477,\n      \"after_pearson\": 0.1450110587188477,\n      \"delta_pearson\": 0.0,\n      \"before_ssim\": 0.1354265834968217,\n      \"after_ssim\": 0.1354265834968217,\n      \"delta_ssim\": 0.0\n    },\n    {\n      \"case\": \"reserved_z_25.3_mm\",\n      \"before_pearson\": 0.6052160815858367,\n      \"after_pearson\": 0.6052160815858367,\n      \"delta_pearson\": 0.0,\n      \"before_ssim\": 0.5654763095059041,\n      \"after_ssim\": 0.5654763095059041,\n      \"delta_ssim\": 0.0\n    },\n    {\n      \"case\": \"reserved_z_26.5_mm\",\n      \"before_pearson\": 0.15342967664805895,\n      \"after_pearson\": 0.15342967664805895,\n      \"delta_pearson\": 0.0,\n      \"before_ssim\": 0.10666934533983441,\n      \"after_ssim\": 0.10666934533983441,\n      \"delta_ssim\": 0.0\n    },\n    {\n      \"case\": \"reserved_z_27.7_mm\",\n      \"before_pearson\": 0.5452698715131963,\n      \"after_pearson\": 0.5452698715131963,\n      \"delta_pearson\": 0.0,\n      \"before_ssim\": 0.37956471483149307,\n      \"after_ssim\": 0.37956471483149307,\n      \"delta_ssim\": 0.0\n    }\n  ]\n}\n"
+      ]
+    },
+    {
+      "execution_count": 6,
+      "text_outputs": [
+        "Submission archive: /workspace/Nuclear-hack/artifacts/notebook-v3-release-validation/notebook-workdir/doe-run-20261106-233820-189687/submission.zip\nSaved results: /workspace/Nuclear-hack/artifacts/notebook-v3-release-validation/notebook-workdir/doe-run-20261106-233820-189687/result\n"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+Private training inputs. SBS texture archive includes its CC0/Public Domain License.txt. Model weights belong to the repository owner; no new public license is granted by staging. Use datasets create without --public.

@@ -1,0 +1,10 @@
+{
+  "title": "Nuclear Hack DOE Training V3",
+  "id": "fiskarik/nuclear-hack-doe-training-v3",
+  "licenses": [
+    {
+      "name": "other"
+    }
+  ],
+  "description": "Private inputs: Screaming Brain Studios textures carry CC0/Public Domain; model weights remain copyright of the repository owner and are staged for private training only."
+}

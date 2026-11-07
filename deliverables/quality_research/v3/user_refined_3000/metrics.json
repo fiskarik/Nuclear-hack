@@ -1,0 +1,622 @@
+{
+  "optics": {
+    "size": 128,
+    "wavelength_m": 5.32e-07,
+    "pixel_pitch_m": 1e-05,
+    "distances_m": [
+      0.0241,
+      0.0253,
+      0.0265,
+      0.0277
+    ]
+  },
+  "sampling": {
+    "critical_distance_m": 0.02406015037593985,
+    "criterion": "conservative edge chirp frequency / Nyquist; <=1 passes",
+    "planes": [
+      {
+        "distance_m": 0.0241,
+        "input_chirp_nyquist_ratio": 0.9983464886282096,
+        "output_chirp_nyquist_ratio": 1.00165625,
+        "input_chirp_passes": true
+      },
+      {
+        "distance_m": 0.0253,
+        "input_chirp_nyquist_ratio": 0.9509940860055277,
+        "output_chirp_nyquist_ratio": 1.05153125,
+        "input_chirp_passes": true
+      },
+      {
+        "distance_m": 0.0265,
+        "input_chirp_nyquist_ratio": 0.9079302028656547,
+        "output_chirp_nyquist_ratio": 1.10140625,
+        "input_chirp_passes": true
+      },
+      {
+        "distance_m": 0.0277,
+        "input_chirp_nyquist_ratio": 0.8685974864960235,
+        "output_chirp_nyquist_ratio": 1.1512812499999998,
+        "input_chirp_passes": true
+      }
+    ],
+    "interpretation": "input chirp must be resolved before FFT; output chirp may exceed Nyquist for complex-field interpolation, but is pointwise unit-modulus and does not alter sampled amplitude. Do not claim both chirps are aliasing-free."
+  },
+  "metadata": {
+    "method": "FresnelNet + per-input phase Adam",
+    "network_stages": 12,
+    "cnn_width": 12,
+    "architecture": {
+      "kind": "adaptive",
+      "stages": 12,
+      "width": 12,
+      "initializer_width": 8,
+      "initializer_depth": 4
+    },
+    "source": "fixed user quartet; one original-grid shared DOE; 12-stage adaptive wavefront network",
+    "device": "cpu",
+    "checkpoint_epoch": 15,
+    "checkpoint_sha256": "6de10cc850131e642fdacd3c68053b4b1c5dc3e429b7f64bf28216cf8b1c10d0",
+    "network_forward_seconds": 0.1571776079981646,
+    "test_time_optimizer_steps": 3000,
+    "refinement": {
+      "method": "per-input Adam on shared phase, with straight-through 8-bit quantization",
+      "optimizer_steps": 3000,
+      "learning_rate": 0.08,
+      "best_step_per_input": [
+        3000
+      ],
+      "seconds": 64.64418344300066,
+      "history": [
+        {
+          "step": 0,
+          "loss": 0.6750403642654419
+        },
+        {
+          "step": 25,
+          "loss": 0.6333013772964478
+        },
+        {
+          "step": 50,
+          "loss": 0.6205934286117554
+        },
+        {
+          "step": 75,
+          "loss": 0.6104015707969666
+        },
+        {
+          "step": 100,
+          "loss": 0.6015090346336365
+        },
+        {
+          "step": 125,
+          "loss": 0.5904962420463562
+        },
+        {
+          "step": 150,
+          "loss": 0.5835564732551575
+        },
+        {
+          "step": 175,
+          "loss": 0.5756615996360779
+        },
+        {
+          "step": 200,
+          "loss": 0.5686671137809753
+        },
+        {
+          "step": 225,
+          "loss": 0.5628957152366638
+        },
+        {
+          "step": 250,
+          "loss": 0.5560024976730347
+        },
+        {
+          "step": 275,
+          "loss": 0.5516496896743774
+        },
+        {
+          "step": 300,
+          "loss": 0.5476553440093994
+        },
+        {
+          "step": 325,
+          "loss": 0.5445592403411865
+        },
+        {
+          "step": 350,
+          "loss": 0.5413580536842346
+        },
+        {
+          "step": 375,
+          "loss": 0.5364965200424194
+        },
+        {
+          "step": 400,
+          "loss": 0.5333809852600098
+        },
+        {
+          "step": 425,
+          "loss": 0.5325402021408081
+        },
+        {
+          "step": 450,
+          "loss": 0.5280007719993591
+        },
+        {
+          "step": 475,
+          "loss": 0.5249371528625488
+        },
+        {
+          "step": 500,
+          "loss": 0.5235338807106018
+        },
+        {
+          "step": 525,
+          "loss": 0.5235338807106018
+        },
+        {
+          "step": 550,
+          "loss": 0.5223636627197266
+        },
+        {
+          "step": 575,
+          "loss": 0.5188436508178711
+        },
+        {
+          "step": 600,
+          "loss": 0.5188436508178711
+        },
+        {
+          "step": 625,
+          "loss": 0.5174238681793213
+        },
+        {
+          "step": 650,
+          "loss": 0.5155205726623535
+        },
+        {
+          "step": 675,
+          "loss": 0.5129819512367249
+        },
+        {
+          "step": 700,
+          "loss": 0.5111348032951355
+        },
+        {
+          "step": 725,
+          "loss": 0.5111348032951355
+        },
+        {
+          "step": 750,
+          "loss": 0.5105443596839905
+        },
+        {
+          "step": 775,
+          "loss": 0.5086380243301392
+        },
+        {
+          "step": 800,
+          "loss": 0.5066304206848145
+        },
+        {
+          "step": 825,
+          "loss": 0.5064130425453186
+        },
+        {
+          "step": 850,
+          "loss": 0.5064130425453186
+        },
+        {
+          "step": 875,
+          "loss": 0.5052714347839355
+        },
+        {
+          "step": 900,
+          "loss": 0.5051695108413696
+        },
+        {
+          "step": 925,
+          "loss": 0.5044988989830017
+        },
+        {
+          "step": 950,
+          "loss": 0.5039228200912476
+        },
+        {
+          "step": 975,
+          "loss": 0.5029118061065674
+        },
+        {
+          "step": 1000,
+          "loss": 0.5025802254676819
+        },
+        {
+          "step": 1025,
+          "loss": 0.5011248588562012
+        },
+        {
+          "step": 1050,
+          "loss": 0.5002662539482117
+        },
+        {
+          "step": 1075,
+          "loss": 0.49958765506744385
+        },
+        {
+          "step": 1100,
+          "loss": 0.4990404546260834
+        },
+        {
+          "step": 1125,
+          "loss": 0.4988904893398285
+        },
+        {
+          "step": 1150,
+          "loss": 0.4980332851409912
+        },
+        {
+          "step": 1175,
+          "loss": 0.4979807138442993
+        },
+        {
+          "step": 1200,
+          "loss": 0.4972262382507324
+        },
+        {
+          "step": 1225,
+          "loss": 0.49706655740737915
+        },
+        {
+          "step": 1250,
+          "loss": 0.4963622987270355
+        },
+        {
+          "step": 1275,
+          "loss": 0.49538010358810425
+        },
+        {
+          "step": 1300,
+          "loss": 0.4949987530708313
+        },
+        {
+          "step": 1325,
+          "loss": 0.4949987530708313
+        },
+        {
+          "step": 1350,
+          "loss": 0.4943755865097046
+        },
+        {
+          "step": 1375,
+          "loss": 0.4940900206565857
+        },
+        {
+          "step": 1400,
+          "loss": 0.49358469247817993
+        },
+        {
+          "step": 1425,
+          "loss": 0.49358469247817993
+        },
+        {
+          "step": 1450,
+          "loss": 0.49299249053001404
+        },
+        {
+          "step": 1475,
+          "loss": 0.4926283061504364
+        },
+        {
+          "step": 1500,
+          "loss": 0.49236294627189636
+        },
+        {
+          "step": 1525,
+          "loss": 0.4920397996902466
+        },
+        {
+          "step": 1550,
+          "loss": 0.4918775260448456
+        },
+        {
+          "step": 1575,
+          "loss": 0.4914366602897644
+        },
+        {
+          "step": 1600,
+          "loss": 0.49085158109664917
+        },
+        {
+          "step": 1625,
+          "loss": 0.4907911717891693
+        },
+        {
+          "step": 1650,
+          "loss": 0.49013030529022217
+        },
+        {
+          "step": 1675,
+          "loss": 0.49013030529022217
+        },
+        {
+          "step": 1700,
+          "loss": 0.49013030529022217
+        },
+        {
+          "step": 1725,
+          "loss": 0.48979172110557556
+        },
+        {
+          "step": 1750,
+          "loss": 0.48973938822746277
+        },
+        {
+          "step": 1775,
+          "loss": 0.489370733499527
+        },
+        {
+          "step": 1800,
+          "loss": 0.4891146123409271
+        },
+        {
+          "step": 1825,
+          "loss": 0.48903724551200867
+        },
+        {
+          "step": 1850,
+          "loss": 0.488847553730011
+        },
+        {
+          "step": 1875,
+          "loss": 0.488847553730011
+        },
+        {
+          "step": 1900,
+          "loss": 0.4883910119533539
+        },
+        {
+          "step": 1925,
+          "loss": 0.4883910119533539
+        },
+        {
+          "step": 1950,
+          "loss": 0.4880272150039673
+        },
+        {
+          "step": 1975,
+          "loss": 0.487863153219223
+        },
+        {
+          "step": 2000,
+          "loss": 0.487667441368103
+        },
+        {
+          "step": 2025,
+          "loss": 0.4876258671283722
+        },
+        {
+          "step": 2050,
+          "loss": 0.4874778985977173
+        },
+        {
+          "step": 2075,
+          "loss": 0.48738211393356323
+        },
+        {
+          "step": 2100,
+          "loss": 0.4871844947338104
+        },
+        {
+          "step": 2125,
+          "loss": 0.4869602918624878
+        },
+        {
+          "step": 2150,
+          "loss": 0.4869602918624878
+        },
+        {
+          "step": 2175,
+          "loss": 0.4868781566619873
+        },
+        {
+          "step": 2200,
+          "loss": 0.48666056990623474
+        },
+        {
+          "step": 2225,
+          "loss": 0.4864785373210907
+        },
+        {
+          "step": 2250,
+          "loss": 0.4864785373210907
+        },
+        {
+          "step": 2275,
+          "loss": 0.4863379895687103
+        },
+        {
+          "step": 2300,
+          "loss": 0.48627978563308716
+        },
+        {
+          "step": 2325,
+          "loss": 0.48613014817237854
+        },
+        {
+          "step": 2350,
+          "loss": 0.48605847358703613
+        },
+        {
+          "step": 2375,
+          "loss": 0.4860175848007202
+        },
+        {
+          "step": 2400,
+          "loss": 0.4859425127506256
+        },
+        {
+          "step": 2425,
+          "loss": 0.48590701818466187
+        },
+        {
+          "step": 2450,
+          "loss": 0.4857540428638458
+        },
+        {
+          "step": 2475,
+          "loss": 0.48572129011154175
+        },
+        {
+          "step": 2500,
+          "loss": 0.4857066869735718
+        },
+        {
+          "step": 2525,
+          "loss": 0.4856405258178711
+        },
+        {
+          "step": 2550,
+          "loss": 0.48553431034088135
+        },
+        {
+          "step": 2575,
+          "loss": 0.4855337142944336
+        },
+        {
+          "step": 2600,
+          "loss": 0.48542848229408264
+        },
+        {
+          "step": 2625,
+          "loss": 0.48534509539604187
+        },
+        {
+          "step": 2650,
+          "loss": 0.4853033721446991
+        },
+        {
+          "step": 2675,
+          "loss": 0.4853033721446991
+        },
+        {
+          "step": 2700,
+          "loss": 0.4852396845817566
+        },
+        {
+          "step": 2725,
+          "loss": 0.4852396845817566
+        },
+        {
+          "step": 2750,
+          "loss": 0.48523351550102234
+        },
+        {
+          "step": 2775,
+          "loss": 0.48511236906051636
+        },
+        {
+          "step": 2800,
+          "loss": 0.48511236906051636
+        },
+        {
+          "step": 2825,
+          "loss": 0.48511236906051636
+        },
+        {
+          "step": 2850,
+          "loss": 0.48507359623908997
+        },
+        {
+          "step": 2875,
+          "loss": 0.4850383996963501
+        },
+        {
+          "step": 2900,
+          "loss": 0.4850289821624756
+        },
+        {
+          "step": 2925,
+          "loss": 0.48499587178230286
+        },
+        {
+          "step": 2950,
+          "loss": 0.48499584197998047
+        },
+        {
+          "step": 2975,
+          "loss": 0.48497098684310913
+        },
+        {
+          "step": 3000,
+          "loss": 0.48496922850608826
+        }
+      ],
+      "warning": "This is a neural initializer plus iterative phase solver, not a single network forward pass."
+    }
+  },
+  "planes": [
+    {
+      "plane": 1,
+      "distance_mm": 24.1,
+      "output_pixel_pitch_um": 10.016562500000001,
+      "amplitude_peak_before_display_scaling": 2.0106287002563477,
+      "pearson": 0.5944955166092712,
+      "ssim": 0.3005130081047582
+    },
+    {
+      "plane": 2,
+      "distance_mm": 25.3,
+      "output_pixel_pitch_um": 10.5153125,
+      "amplitude_peak_before_display_scaling": 1.922090768814087,
+      "pearson": 0.70553857549163,
+      "ssim": 0.7227939504515166
+    },
+    {
+      "plane": 3,
+      "distance_mm": 26.5,
+      "output_pixel_pitch_um": 11.014062500000001,
+      "amplitude_peak_before_display_scaling": 5.359887599945068,
+      "pearson": 0.23248241311043857,
+      "ssim": 0.06745907367401717
+    },
+    {
+      "plane": 4,
+      "distance_mm": 27.7,
+      "output_pixel_pitch_um": 11.5128125,
+      "amplitude_peak_before_display_scaling": 1.642753005027771,
+      "pearson": 0.8311305200037824,
+      "ssim": 0.7277902258960757
+    }
+  ],
+  "mean_pearson": 0.5909117563037806,
+  "mean_ssim": 0.454639064531592,
+  "phase_encoding": "uint8 0 -> -pi; 255 -> +pi; round to nearest",
+  "reconstruction": "single-FFT Fresnel, reconstructed from the saved quantized DOE PNG",
+  "png_scaling": "amplitude (not intensity); each plane divided by its own maximum; no background subtraction or fitted gain",
+  "ssim": {
+    "implementation": "skimage.metrics.structural_similarity",
+    "win_size": 7,
+    "data_range": 1.0
+  },
+  "pearson_constant_image": "null (undefined), never a fabricated zero or one",
+  "doe_sha256": "e29a8b3eff596d1ff0ab5eb4da82edec14efd4c9035caff7e9ce37e16b7755a9",
+  "inputs": [
+    {
+      "name": "plane_1.png",
+      "sha256": "97d82d495a3c048f2f05905d482783ea5503d48ccc351ccb0a245d3079b9b84a"
+    },
+    {
+      "name": "plane_2.png",
+      "sha256": "ae9c34d887ec37786bd67dbe255f19ef6dd9b0debf6b648810a3d6f0381db4b6"
+    },
+    {
+      "name": "plane_3.png",
+      "sha256": "66900f8c0f1c1e9c443524126773578134f89c933cb00e23d7f51ef6b52f2fe1"
+    },
+    {
+      "name": "plane_4.png",
+      "sha256": "ffb64df806fbdcbb1134c64e1e00a2e0ef84ddd3fe315dcd2dd080e6a4d9ae72"
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "config": {
+    "epochs": 1,
+    "batch_size": 2,
+    "learning_rate": 0.0003,
+    "stages": 24,
+    "width": 12,
+    "seed": 42,
+    "device": "cpu",
+    "threads": 2,
+    "initial_checkpoint": "artifacts/adaptive_v1/best.pt",
+    "objective": "perceptual",
+    "architecture": "adaptive",
+    "initializer_width": 8,
+    "initializer_depth": 4
+  },
+  "device": "cpu",
+  "torch": "2.9.1+cpu",
+  "train_count": 8,
+  "validation_count": 4,
+  "selection": "minimum validation perceptual loss; test split never used for selection",
+  "initial_validation_loss": 0.6193782091140747,
+  "best_validation_loss": 0.6193782091140747,
+  "best_epoch": 0,
+  "parameter_l2_change_last_vs_initial": 0.2671083448464479,
+  "elapsed_seconds": 5.320872205000342,
+  "history": [
+    {
+      "epoch": 0,
+      "train_loss": null,
+      "validation_loss": 0.6193782091140747
+    },
+    {
+      "epoch": 1,
+      "train_loss": 0.5993132144212723,
+      "validation_loss": 0.6204399764537811,
+      "learning_rate": 0.0003
+    }
+  ],
+  "dataset_manifest_sha256": "e6fc982138e90234f39ff49bf8480336616932215e82f505c195681dd30864b0",
+  "parent_checkpoint": {
+    "filename": "best.pt",
+    "sha256": "6de10cc850131e642fdacd3c68053b4b1c5dc3e429b7f64bf28216cf8b1c10d0",
+    "epoch": 15,
+    "architecture": {
+      "kind": "adaptive",
+      "stages": 12,
+      "width": 12,
+      "initializer_width": 8,
+      "initializer_depth": 4
+    }
+  },
+  "optimizer": "fresh Adam state; fine-tuning weights, not resuming optimizer state"
+}

@@ -1,0 +1,217 @@
+{
+  "config": {
+    "epochs": 30,
+    "batch_size": 4,
+    "learning_rate": 0.001,
+    "stages": 6,
+    "width": 12,
+    "seed": 42,
+    "device": "cpu",
+    "threads": 2,
+    "initial_checkpoint": "deliverables/best.pt"
+  },
+  "device": "cpu",
+  "torch": "2.9.1+cpu",
+  "train_count": 256,
+  "validation_count": 32,
+  "selection": "minimum validation physics loss; test split never used for selection",
+  "initial_validation_loss": 0.32908185198903084,
+  "best_validation_loss": 0.31621380895376205,
+  "best_epoch": 24,
+  "parameter_l2_change_last_vs_initial": 3.5314272653027743,
+  "elapsed_seconds": 468.33030120600006,
+  "history": [
+    {
+      "epoch": 0,
+      "train_loss": null,
+      "validation_loss": 0.32908185198903084
+    },
+    {
+      "epoch": 1,
+      "train_loss": 0.2668868990149349,
+      "validation_loss": 0.32544342428445816,
+      "learning_rate": 0.001
+    },
+    {
+      "epoch": 2,
+      "train_loss": 0.2634645092766732,
+      "validation_loss": 0.3222607225179672,
+      "learning_rate": 0.0009972609476841367
+    },
+    {
+      "epoch": 3,
+      "train_loss": 0.261032079346478,
+      "validation_loss": 0.3204197585582733,
+      "learning_rate": 0.0009890738003669028
+    },
+    {
+      "epoch": 4,
+      "train_loss": 0.2593351148534566,
+      "validation_loss": 0.3191469572484493,
+      "learning_rate": 0.0009755282581475768
+    },
+    {
+      "epoch": 5,
+      "train_loss": 0.2584317035507411,
+      "validation_loss": 0.3186430372297764,
+      "learning_rate": 0.0009567727288213003
+    },
+    {
+      "epoch": 6,
+      "train_loss": 0.2578791081905365,
+      "validation_loss": 0.3182716704905033,
+      "learning_rate": 0.0009330127018922195
+    },
+    {
+      "epoch": 7,
+      "train_loss": 0.2574846800416708,
+      "validation_loss": 0.3177086338400841,
+      "learning_rate": 0.0009045084971874739
+    },
+    {
+      "epoch": 8,
+      "train_loss": 0.2571488923858851,
+      "validation_loss": 0.31754017248749733,
+      "learning_rate": 0.0008715724127386972
+    },
+    {
+      "epoch": 9,
+      "train_loss": 0.2572465657722205,
+      "validation_loss": 0.31752636283636093,
+      "learning_rate": 0.0008345653031794292
+    },
+    {
+      "epoch": 10,
+      "train_loss": 0.2569191895890981,
+      "validation_loss": 0.31747233867645264,
+      "learning_rate": 0.0007938926261462366
+    },
+    {
+      "epoch": 11,
+      "train_loss": 0.25670894142240286,
+      "validation_loss": 0.31712450087070465,
+      "learning_rate": 0.00075
+    },
+    {
+      "epoch": 12,
+      "train_loss": 0.2565062381327152,
+      "validation_loss": 0.3170654773712158,
+      "learning_rate": 0.0007033683215379003
+    },
+    {
+      "epoch": 13,
+      "train_loss": 0.2565561963710934,
+      "validation_loss": 0.3168753683567047,
+      "learning_rate": 0.0006545084971874739
+    },
+    {
+      "epoch": 14,
+      "train_loss": 0.2563334626611322,
+      "validation_loss": 0.31677260994911194,
+      "learning_rate": 0.0006039558454088797
+    },
+    {
+      "epoch": 15,
+      "train_loss": 0.2561351724434644,
+      "validation_loss": 0.3166228085756302,
+      "learning_rate": 0.0005522642316338269
+    },
+    {
+      "epoch": 16,
+      "train_loss": 0.2560870924498886,
+      "validation_loss": 0.31665895506739616,
+      "learning_rate": 0.0005000000000000002
+    },
+    {
+      "epoch": 17,
+      "train_loss": 0.25599103420972824,
+      "validation_loss": 0.3165690712630749,
+      "learning_rate": 0.0004477357683661734
+    },
+    {
+      "epoch": 18,
+      "train_loss": 0.25592530705034733,
+      "validation_loss": 0.31639716401696205,
+      "learning_rate": 0.00039604415459112036
+    },
+    {
+      "epoch": 19,
+      "train_loss": 0.2559102079831064,
+      "validation_loss": 0.31660376861691475,
+      "learning_rate": 0.0003454915028125264
+    },
+    {
+      "epoch": 20,
+      "train_loss": 0.2559417514130473,
+      "validation_loss": 0.31639134511351585,
+      "learning_rate": 0.00029663167846210003
+    },
+    {
+      "epoch": 21,
+      "train_loss": 0.25579059263691306,
+      "validation_loss": 0.31633227691054344,
+      "learning_rate": 0.00025000000000000017
+    },
+    {
+      "epoch": 22,
+      "train_loss": 0.25568133406341076,
+      "validation_loss": 0.31623944267630577,
+      "learning_rate": 0.00020610737385376354
+    },
+    {
+      "epoch": 23,
+      "train_loss": 0.25562696694396436,
+      "validation_loss": 0.31622598320245743,
+      "learning_rate": 0.00016543469682057108
+    },
+    {
+      "epoch": 24,
+      "train_loss": 0.2555865787435323,
+      "validation_loss": 0.31621380895376205,
+      "learning_rate": 0.00012842758726130303
+    },
+    {
+      "epoch": 25,
+      "train_loss": 0.25558624346740544,
+      "validation_loss": 0.3162553012371063,
+      "learning_rate": 9.549150281252637e-05
+    },
+    {
+      "epoch": 26,
+      "train_loss": 0.25557532883249223,
+      "validation_loss": 0.31624675542116165,
+      "learning_rate": 6.698729810778068e-05
+    },
+    {
+      "epoch": 27,
+      "train_loss": 0.2555565082002431,
+      "validation_loss": 0.31622689962387085,
+      "learning_rate": 4.322727117869953e-05
+    },
+    {
+      "epoch": 28,
+      "train_loss": 0.2555418324191123,
+      "validation_loss": 0.3162202313542366,
+      "learning_rate": 2.447174185242324e-05
+    },
+    {
+      "epoch": 29,
+      "train_loss": 0.255530757131055,
+      "validation_loss": 0.31621937453746796,
+      "learning_rate": 1.092619963309716e-05
+    },
+    {
+      "epoch": 30,
+      "train_loss": 0.25552651355974376,
+      "validation_loss": 0.3162180967628956,
+      "learning_rate": 2.7390523158633003e-06
+    }
+  ],
+  "dataset_manifest_sha256": "453f634f7d9276e6e91f80bd5c9318df947114b2a201b11656ef2cc383f1f195",
+  "parent_checkpoint": {
+    "filename": "best.pt",
+    "sha256": "fc26df106b0be3ca488c4cc4b2e3ee00cc70f69060da0973dc4fbc10297d6878",
+    "epoch": 24
+  },
+  "optimizer": "fresh Adam state; fine-tuning weights, not resuming optimizer state"
+}

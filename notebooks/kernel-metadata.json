@@ -1,0 +1,14 @@
+{
+  "id": "fiskarik/nuclear-hack-fresnel-doe",
+  "title": "Nuclear Hack Fresnel DOE",
+  "code_file": "fresnel_doe_kaggle.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_internet": false,
+  "dataset_sources": [],
+  "competition_sources": [],
+  "kernel_sources": [],
+  "model_sources": []
+}

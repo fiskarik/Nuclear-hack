@@ -1,0 +1,150 @@
+{
+  "training": {
+    "config": {
+      "epochs": 30,
+      "batch_size": 4,
+      "learning_rate": 0.001,
+      "stages": 6,
+      "width": 12,
+      "seed": 42,
+      "device": "cpu",
+      "threads": 2,
+      "initial_checkpoint": "deliverables/best.pt"
+    },
+    "parent_checkpoint": {
+      "filename": "best.pt",
+      "sha256": "fc26df106b0be3ca488c4cc4b2e3ee00cc70f69060da0973dc4fbc10297d6878",
+      "epoch": 24
+    },
+    "initial_validation_loss": 0.32908185198903084,
+    "best_validation_loss": 0.31621380895376205,
+    "best_epoch": 24,
+    "elapsed_seconds": 468.33030120600006,
+    "parameter_l2_change_last_vs_initial": 3.5314272653027743
+  },
+  "image_counts": {
+    "train": 140,
+    "validation": 28,
+    "test": 28,
+    "reserved": 66
+  },
+  "families": {
+    "train": [
+      "Craters",
+      "Grainy",
+      "Manifold",
+      "Marble",
+      "Melt",
+      "Milky",
+      "Spokes",
+      "Super Noise",
+      "Swirl",
+      "Techno"
+    ],
+    "validation": [
+      "Super Perlin",
+      "Turbulence"
+    ],
+    "test": [
+      "Streak",
+      "Vein"
+    ],
+    "reserved": [
+      "Cracks",
+      "Gabor",
+      "Perlin",
+      "Voronoi"
+    ]
+  },
+  "test_count": 32,
+  "comparisons": [
+    {
+      "case": "independent_test_mean",
+      "before_pearson": 0.5502563860507588,
+      "after_pearson": 0.573640414340796,
+      "delta_pearson": 0.023384028290037273,
+      "before_ssim": 0.3995036595332524,
+      "after_ssim": 0.41852615717988945,
+      "delta_ssim": 0.01902249764663705
+    },
+    {
+      "case": "reserved_user_quartet_mean",
+      "before_pearson": 0.2875467695274627,
+      "after_pearson": 0.3113522583892081,
+      "delta_pearson": 0.023805488861745383,
+      "before_ssim": 0.19807331011530976,
+      "after_ssim": 0.21860509155962,
+      "delta_ssim": 0.020531781444310226
+    },
+    {
+      "case": "reserved_z_24.1_mm",
+      "before_pearson": 0.17020887598014442,
+      "after_pearson": 0.18424254447665653,
+      "delta_pearson": 0.014033668496512108,
+      "before_ssim": 0.10949519788089762,
+      "after_ssim": 0.12106428565854763,
+      "delta_ssim": 0.011569087777650006
+    },
+    {
+      "case": "reserved_z_25.3_mm",
+      "before_pearson": 0.45041075260774005,
+      "after_pearson": 0.47699344664235516,
+      "delta_pearson": 0.026582694034615106,
+      "before_ssim": 0.3905666707445751,
+      "after_ssim": 0.42868402868253647,
+      "delta_ssim": 0.038117357937961394
+    },
+    {
+      "case": "reserved_z_26.5_mm",
+      "before_pearson": 0.1076909073831689,
+      "after_pearson": 0.10788552990871736,
+      "delta_pearson": 0.00019462252554845738,
+      "before_ssim": 0.05534758950658708,
+      "after_ssim": 0.05622992381342573,
+      "delta_ssim": 0.0008823343068386502
+    },
+    {
+      "case": "reserved_z_27.7_mm",
+      "before_pearson": 0.42187654213879755,
+      "after_pearson": 0.47628751252910334,
+      "delta_pearson": 0.05441097039030579,
+      "before_ssim": 0.23688378232917914,
+      "after_ssim": 0.2684421280839702,
+      "delta_ssim": 0.03155834575479108
+    }
+  ],
+  "sampling": {
+    "critical_distance_m": 0.02406015037593985,
+    "criterion": "conservative edge chirp frequency / Nyquist; <=1 passes",
+    "planes": [
+      {
+        "distance_m": 0.0241,
+        "input_chirp_nyquist_ratio": 0.9983464886282096,
+        "output_chirp_nyquist_ratio": 1.00165625,
+        "input_chirp_passes": true
+      },
+      {
+        "distance_m": 0.0253,
+        "input_chirp_nyquist_ratio": 0.9509940860055277,
+        "output_chirp_nyquist_ratio": 1.05153125,
+        "input_chirp_passes": true
+      },
+      {
+        "distance_m": 0.0265,
+        "input_chirp_nyquist_ratio": 0.9079302028656547,
+        "output_chirp_nyquist_ratio": 1.10140625,
+        "input_chirp_passes": true
+      },
+      {
+        "distance_m": 0.0277,
+        "input_chirp_nyquist_ratio": 0.8685974864960235,
+        "output_chirp_nyquist_ratio": 1.1512812499999998,
+        "input_chirp_passes": true
+      }
+    ],
+    "interpretation": "input chirp must be resolved before FFT; output chirp may exceed Nyquist for complex-field interpolation, but is pointwise unit-modulus and does not alter sampled amplitude. Do not claim both chirps are aliasing-free."
+  },
+  "device": "cpu",
+  "before_checkpoint_sha256": "fc26df106b0be3ca488c4cc4b2e3ee00cc70f69060da0973dc4fbc10297d6878",
+  "after_checkpoint_sha256": "eff566a2287f30fdad029eda903967e6674bcdb330d2ca433e2aabf2a39c32ad"
+}

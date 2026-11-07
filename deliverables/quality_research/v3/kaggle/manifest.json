@@ -1,0 +1,8 @@
+{
+  "archive_sha256": "a86fd47c8f127638f4b16c837e597a6f5265cb45086bbc6eca67d5a3262ce7c9",
+  "checkpoint_sha256": "6de10cc850131e642fdacd3c68053b4b1c5dc3e429b7f64bf28216cf8b1c10d0",
+  "dataset": "fiskarik/nuclear-hack-doe-training-v3",
+  "kernel": "fiskarik/nuclear-hack-adaptive-gpu",
+  "privacy": "private; never add --public",
+  "runtime_status": "not submitted; authentication and applied Kaggle network access required"
+}
