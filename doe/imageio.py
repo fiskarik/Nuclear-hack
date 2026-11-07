@@ -43,6 +43,8 @@ def amplitude_to_uint8(amp: np.ndarray, target: np.ndarray | None = None,
     """Модуль поля → 8-битное изображение.
 
     mode="max" — нормировка на максимум (|K| / max|K| · 255);
+    mode="rms" — RMS восстановления приравнивается RMS исходного изображения
+                 (так нормированы присланные «expert_runs»), затем насыщение на 255;
     mode="fit" — масштаб по МНК относительно исходного изображения
                  (s = <A,R>/<R,R>, как в Peng et al., Neural Holography, 2020),
                  значения выше 255 насыщаются, как у камеры.
@@ -53,6 +55,9 @@ def amplitude_to_uint8(amp: np.ndarray, target: np.ndarray | None = None,
     elif mode == "fit":
         t = np.asarray(target, dtype=np.float64)
         scale = float((amp * t).sum() / max((amp * amp).sum(), 1e-12))
+    elif mode == "rms":
+        t = np.asarray(target, dtype=np.float64)
+        scale = float(np.sqrt((t * t).mean()) / max(np.sqrt((amp * amp).mean()), 1e-12))
     else:
         raise ValueError(mode)
     return np.clip(np.round(amp * scale), 0, 255).astype(np.uint8)

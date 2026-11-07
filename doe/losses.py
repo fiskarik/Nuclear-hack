@@ -76,3 +76,12 @@ def tradeoff_loss(recon: torch.Tensor, target: torch.Tensor, alpha: torch.Tensor
     a = alpha.to(recon.dtype)
     loss = ((1 - a) * (1 - pcc) + a * (1 - ssim) + w_mse * mse).mean()
     return {"loss": loss, "mse": mse.mean().detach(), "pcc": pcc.mean().detach(), "ssim": ssim.mean().detach()}
+
+
+def minmax_term(recon: torch.Tensor, target: torch.Tensor, sharpness: float = 20.0) -> torch.Tensor:
+    """1 − softmin(КК, ИСС) для каждого примера (восстановление нормируется на максимум), среднее по батчу."""
+    r = recon / recon.amax(dim=(-2, -1), keepdim=True).clamp_min(1e-8)
+    pcc = pearson_t(r, target).mean(1)
+    ssim = ssim_map(r, target).mean(dim=(-3, -2, -1))
+    soft_min = -torch.logsumexp(torch.stack([-pcc, -ssim]) * sharpness, 0) / sharpness
+    return (1 - soft_min).mean()

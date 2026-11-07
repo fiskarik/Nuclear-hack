@@ -47,6 +47,13 @@ for root, _, files in os.walk("/kaggle/input"):
         if f.endswith(".npz") and not os.path.exists(os.path.join("data/cache", f)):
             os.symlink(os.path.join(root, f), os.path.join("data/cache", f))
 print("cache:", os.listdir("data/cache"), flush=True)
+# подключённые веса (*.pt) → weights/ (для дообучения: --init weights/<имя>.pt)
+os.makedirs("weights", exist_ok=True)
+for root, _, files in os.walk("/kaggle/input"):
+    for f in files:
+        if f.endswith(".pt") and not os.path.exists(os.path.join("weights", f)):
+            os.symlink(os.path.join(root, f), os.path.join("weights", f))
+print("weights:", os.listdir("weights"), flush=True)
 subprocess.run("nvidia-smi; python -c 'import torch,sys;print(sys.version, torch.__version__, torch.cuda.device_count())'", shell=True)
 try:
     import torch
@@ -118,7 +125,10 @@ def cmd_push(a):
     }
     (kdir / "kernel-metadata.json").write_text(json.dumps(meta, indent=2))
     print(f"kernel: {kdir} ({len(script) / 1024:.0f} КБ)")
-    subprocess.run(CLI + ["kernels", "push", "-p", str(kdir), "--accelerator", a.accelerator], check=True)
+    cmd = CLI + ["kernels", "push", "-p", str(kdir), "--accelerator", a.accelerator]
+    if a.timeout:
+        cmd += ["-t", str(a.timeout)]
+    subprocess.run(cmd, check=True)
 
 
 def status(slug: str) -> str:
@@ -151,6 +161,7 @@ def main():
     p.add_argument("--accelerator", default="NvidiaTeslaT4")
     p.add_argument("--dataset", action="append", help="подключить Kaggle-датасет (owner/slug), напр. fiskarik/doe-nn-data")
     p.add_argument("--require-gpu", action="store_true", help="не обучать, если Kaggle выдал машину без GPU")
+    p.add_argument("--timeout", type=int, default=0, help="жёсткий лимит времени работы ноутбука, с")
     p.add_argument("--workdir", default=str(ROOT / "kaggle_kernels"))
     p.set_defaults(fn=cmd_push)
     w = sub.add_parser("wait")

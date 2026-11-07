@@ -20,7 +20,7 @@ from PIL import Image
 
 from doe.data import build_bank, load_cache, load_textures
 from doe.imageio import load_gray
-from doe.losses import pearson_t, ssim_map, tradeoff_loss
+from doe.losses import minmax_term, pearson_t, ssim_map, tradeoff_loss
 from doe.model import DOENet, count_params
 from doe.physics import FresnelSystem
 
@@ -48,6 +48,12 @@ def parse():
     ap.add_argument("--grad-feat", action="store_true", help="подавать стадиям градиент потерь ∂L/∂|F_i|")
     ap.add_argument("--deep-sup", type=float, default=0.2, help="вес потерь промежуточных стадий")
     ap.add_argument("--w-mse", type=float, default=0.1)
+    ap.add_argument("--w-minmax", type=float, default=0.0,
+                    help="вес члена 1 − softmin(КК, ИСС): тянет вверх худшую из двух метрик")
+    ap.add_argument("--select", choices=["minmax", "sum"], default="minmax",
+                    help="критерий выбора чекпойнта: minmax — среднее по группам max_α min(КК, ИСС); "
+                         "sum — среднее КК+ИСС при α=0,5")
+    ap.add_argument("--profile", action="store_true", help="профилировать шаги 15–20 и вывести таблицу")
     ap.add_argument("--amp", action="store_true", help="fp16 для свёрток (GPU)")
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     ap.add_argument("--seed", type=int, default=0)
@@ -68,9 +74,10 @@ def sample_alpha(b: int, rng: np.random.Generator) -> np.ndarray:
     return a.astype(np.float32)
 
 
-def make_batch(bank: np.ndarray, b: int, p: int, rng: np.random.Generator, device: str) -> torch.Tensor:
-    idx = rng.integers(0, len(bank), size=(b, p))
-    x = torch.from_numpy(bank[idx]).to(device, non_blocking=True).float().div_(255.0)
+def make_batch(bank: torch.Tensor, b: int, p: int, device: str) -> torch.Tensor:
+    """bank — uint8 (K,N,N) на том же устройстве, что и обучение (на GPU выборка без копирования с CPU)."""
+    idx = torch.randint(0, bank.shape[0], (b, p), device=bank.device)
+    x = bank[idx].to(device).float().div_(255.0)
     fh = torch.rand(b, p, 1, 1, device=device) < 0.5
     fv = torch.rand(b, p, 1, 1, device=device) < 0.5
     x = torch.where(fh, x.flip(-1), x)
@@ -136,19 +143,22 @@ def main():
         val_sets["cifar"] = torch.tensor(up[vrng.integers(0, len(up), size=(64, 4))] / 255.0, dtype=torch.float32)
     print(f"bank {bank.shape} за {time.time() - t0:.1f} c", flush=True)
 
+    bank_t = torch.from_numpy(bank).to(dev)
+    del bank
     system = FresnelSystem().to(dev)
     model = DOENet(base=args.base, depth=args.depth, stages=args.stages,
                    stage_base=args.stage_base, stage_depth=args.stage_depth, grad_feat=args.grad_feat).to(dev)
     model.use_amp = args.amp
     if args.init:
-        ck = torch.load(args.init, map_location=dev)
+        ck = torch.load(args.init, map_location=dev, weights_only=False)
         model.load_state_dict(ck["model"])
+        print(f"инициализация весами {args.init} (шаг {ck.get('step')})", flush=True)
     print(f"параметров: {count_params(model):,}", flush=True)
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.wd)
     scaler = torch.amp.GradScaler("cuda", enabled=args.amp and dev == "cuda")
     step, best = 0, -1e9
     if args.resume and Path(args.resume).exists():
-        ck = torch.load(args.resume, map_location=dev)
+        ck = torch.load(args.resume, map_location=dev, weights_only=False)
         model.load_state_dict(ck["model"])
         opt.load_state_dict(ck["opt"])
         step, best = ck["step"], ck.get("best", best)
@@ -174,7 +184,11 @@ def main():
         lr = args.lr * min(1.0, (step + 1) / warm) * (0.02 + 0.98 * 0.5 * (1 + math.cos(math.pi * min(step / lr_total, 1.0))))
         for g in opt.param_groups:
             g["lr"] = lr
-        target = make_batch(bank, args.batch, 4, rng, dev)
+        if args.profile and step == 15:
+            prof = torch.profiler.profile(activities=[torch.profiler.ProfilerActivity.CPU] + (
+                [torch.profiler.ProfilerActivity.CUDA] if dev == "cuda" else []))
+            prof.__enter__()
+        target = make_batch(bank_t, args.batch, 4, dev)
         alpha = torch.from_numpy(sample_alpha(args.batch, rng)).to(dev)
         hist = model(target, system, alpha)
         recs = [(s.unsqueeze(1) * system.rel_kernel) for s in hist]
@@ -182,6 +196,8 @@ def main():
         recs = [torch.fft.fftshift(r, dim=(-2, -1)) for r in recs]
         final = tradeoff_loss(recs[-1], target, alpha, w_mse=args.w_mse, ssim_norm=args.ssim_norm)
         loss = final["loss"]
+        if args.w_minmax > 0:
+            loss = loss + args.w_minmax * minmax_term(recs[-1], target)
         if args.deep_sup > 0 and len(recs) > 1:
             inter = sum(tradeoff_loss(r, target, alpha, w_mse=args.w_mse, ssim_norm=args.ssim_norm)["loss"] for r in recs[:-1]) / (len(recs) - 1)
             loss = loss + args.deep_sup * inter
@@ -189,11 +205,21 @@ def main():
         scaler.scale(loss).backward()
         scaler.unscale_(opt)
         gn = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-        if torch.isfinite(gn):
-            scaler.step(opt)
+        if scaler.is_enabled():
+            scaler.step(opt)  # GradScaler сам пропускает шаг при inf/NaN — без синхронизации с CPU
+        elif torch.isfinite(gn):
+            opt.step()
         scaler.update()
         step += 1
+        if len(t_hist) < 40 and dev == "cuda":
+            torch.cuda.synchronize()
         t_hist.append(time.time() - ts)
+        if args.profile and step == 20:
+            if dev == "cuda":
+                torch.cuda.synchronize()
+            prof.__exit__(None, None, None)
+            key = "self_cuda_time_total" if dev == "cuda" else "self_cpu_time_total"
+            print(prof.key_averages().table(sort_by=key, row_limit=25), flush=True)
         if step % args.log_every == 0:
             rec = {"step": step, "lr": lr, "loss": loss.item(), "pcc": final["pcc"].item(),
                    "ssim": final["ssim"].item(), "mse": final["mse"].item(), "gn": float(gn),
@@ -208,7 +234,12 @@ def main():
                     ev["val"][f"{vname}_{a}"] = evaluate(model, system, vt, a)
             for name, t in examples.items():
                 ev[name] = evaluate(model, system, t, 0.5)
-            score = float(np.mean([ev["val"][f"{v}_0.5"]["pcc"] + ev["val"][f"{v}_0.5"]["ssim"] for v in val_sets]))
+            score_sum = float(np.mean([ev["val"][f"{v}_0.5"]["pcc"] + ev["val"][f"{v}_0.5"]["ssim"]
+                                       for v in val_sets]))
+            score_mm = float(np.mean([max(min(ev["val"][f"{v}_{a}"]["pcc"], ev["val"][f"{v}_{a}"]["ssim"])
+                                          for a in (0.0, 0.5, 1.0)) for v in val_sets]))
+            ev["score_sum"], ev["score_minmax"] = score_sum, score_mm
+            score = score_mm if args.select == "minmax" else score_sum
             ev["score"] = score
             print("EVAL", json.dumps(ev), flush=True)
             log.write(json.dumps({"eval": ev}) + "\n")

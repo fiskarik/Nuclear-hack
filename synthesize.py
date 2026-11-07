@@ -58,8 +58,9 @@ def main():
     ap.add_argument("--objective", choices=["tradeoff", "minmax"], default="minmax",
                     help="цель доводки: minmax — максимум худшей из метрик, tradeoff — взвешенная по α")
     ap.add_argument("--gs-iters", type=int, default=200)
-    ap.add_argument("--norm", choices=["max", "fit"], default="max",
-                    help="сохранение модуля: max — нормировка на максимум; fit — масштаб МНК к исходному")
+    ap.add_argument("--norm", choices=["max", "fit", "rms"], default="max",
+                    help="сохранение модуля: max — нормировка на максимум; fit — масштаб МНК к исходному; "
+                         "rms — RMS восстановления = RMS исходного (как в expert_runs)")
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     args = ap.parse_args()
     if args.alpha != "auto":
