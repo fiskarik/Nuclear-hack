@@ -95,7 +95,9 @@ def main():
     t0 = time.perf_counter()
     model = load_model(a.weights, a.device)
     system = FresnelSystem().to(a.device)
-    synthesize([np.zeros((128, 128), np.uint8) + 1] * 4, "nn", model, 0.5, device=a.device, system=system)  # прогрев
+    warm = [np.full((128, 128), 1, np.uint8)] * 4  # прогрев: сеть и доводка (первый вызов дольше)
+    synthesize(warm, "nn", model, 0.5, refine_iters=min(a.refine, 3), device=a.device, system=system,
+               objective="tradeoff", refine_alpha=a.refine_ssim_weight)
     t_load = time.perf_counter() - t0
     print(f"Модель: {a.weights} ({model.config.get('stages')} стадий), загрузка и прогрев {t_load:.2f} с, "
           f"устройство {a.device}, потоков {torch.get_num_threads()}", flush=True)
