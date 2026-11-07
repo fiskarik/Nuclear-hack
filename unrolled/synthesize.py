@@ -49,10 +49,9 @@ def main():
     ap.add_argument("--weights", default=str(DEFAULT_WEIGHTS))
     ap.add_argument("--method", choices=["nn", "gs", "adam"], default="nn",
                     help="nn — нейросеть (по умолчанию); gs/adam — итерационные методы для сравнения")
-    ap.add_argument("--alpha", default="auto",
-                    help="компромисс метрик: 0 — максимум КК, 1 — максимум ИСС (тёмный фон); "
-                         "auto (по умолчанию) — сеть считает 5 вариантов α за один проход и выбирает "
-                         "ДОЭ с максимальным min(КК, ИСС) по физической модели")
+    ap.add_argument("--alpha", default="fast",
+                    help="компромисс метрик: 0 — максимум КК, 1 — максимум ИСС; fast (по умолчанию) — один "
+                         "проход при α=0,5 с защитой от «горячей точки»; auto — 5 вариантов α и выбор лучшего")
     ap.add_argument("--refine", type=int, default=0,
                     help="число итераций дополнительной градиентной доводки после сети (0 — чистая сеть)")
     ap.add_argument("--select", choices=["weighted", "min", "sum"], default="weighted",
@@ -70,7 +69,7 @@ def main():
                          "rms — RMS восстановления = RMS исходного (как в expert_runs)")
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     args = ap.parse_args()
-    if args.alpha != "auto":
+    if args.alpha not in ("auto", "fast"):
         args.alpha = float(args.alpha)
 
     files = collect_inputs(args)
@@ -83,7 +82,7 @@ def main():
                      select=args.select, ssim_weight=args.ssim_weight, hotspot_guard=args.hotspot_guard)
     save_result(res, args.out, images)
 
-    print(f"Метод: {args.method}" + (f" (α={res.alpha:g}{' — выбрано автоматически' if args.alpha == 'auto' else ''}, "
+    print(f"Метод: {args.method}" + (f" (α={res.alpha:g}{' — выбрано автоматически' if args.alpha in ('auto', 'fast') else ''}, "
                                      f"доводка={args.refine})" if args.method == "nn" else ""))
     print(f"Время синтеза ДОЭ: {res.seconds * 1000:.1f} мс ({args.device})")
     print(f"{'плоскость':>9} {'z, мм':>6} {'КК Пирсона':>11} {'ИСС(SSIM)':>10} {'ИСС 7×7':>9} {'ИСС глоб.':>10}  файл")

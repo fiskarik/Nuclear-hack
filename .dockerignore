@@ -1,0 +1,9 @@
+# В образ попадают только зависимости, код модели, веса и примеры
+**
+!requirements.txt
+!unrolled/predict.py
+!unrolled/synthesize.py
+!unrolled/doe/**
+!unrolled/weights/doe_net.pt
+!unrolled/examples/**
+**/__pycache__

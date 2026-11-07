@@ -30,7 +30,15 @@
 
 ## Быстрый старт
 
-Все команды выполняются из папки `unrolled/`.
+Сборка и запуск в Docker описаны в [корневом README](../README.md#сборка-и-запуск-в-docker):
+`docker build -t doe-nn .` из корня репозитория. Точка входа образа — `predict.py`, пакетная
+обработка комплектов.
+
+Все команды ниже выполняются из папки `unrolled/`.
+
+```bash
+python predict.py --input папка_с_комплектами --output results/run   # пакетно, как в Docker
+```
 
 ```bash
 cd unrolled

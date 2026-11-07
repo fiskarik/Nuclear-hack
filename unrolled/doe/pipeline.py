@@ -61,6 +61,22 @@ ALPHA_GRID = (0.0, 0.25, 0.5, 0.75, 1.0)
 
 
 @torch.no_grad()
+def nn_fast(model: DOENet, system: FresnelSystem, target: torch.Tensor, alpha: float = 0.5,
+            hotspot_guard: float = 0.3, fallback_alpha: float = 0.0) -> tuple[torch.Tensor, float]:
+    """Быстрый режим: один проход сети при α = 0,5 (по проверке на отложенных данных он почти не
+    уступает выбору из 5 вариантов, но в 5 раз быстрее). Если найдена «горячая точка» — бывает
+    только на разреженных объектах — второй проход при α = 0."""
+    psi = model.synthesize(target, system, alpha)
+    if hotspot_guard > 0:
+        rec = system.reconstruct(system.to_dechirped(uint8_to_phase(phase_to_uint8(system.to_physical(psi)))))
+        rec = rec / rec.amax(dim=(-2, -1), keepdim=True).clamp_min(1e-12)
+        p99 = torch.quantile(rec.flatten(-2), 0.99, dim=-1)
+        if bool((p99 < hotspot_guard).any()):
+            return model.synthesize(target, system, fallback_alpha), fallback_alpha
+    return psi, alpha
+
+
+@torch.no_grad()
 def nn_auto_alpha(model: DOENet, system: FresnelSystem, target: torch.Tensor,
                   grid: tuple[float, ...] = ALPHA_GRID, norm: str = "max", select: str = "weighted",
                   ssim_weight: float = 0.65, hotspot_guard: float = 0.3) -> tuple[torch.Tensor, float]:
@@ -112,7 +128,8 @@ def synthesize(images: list[np.ndarray], method: str = "nn", model: DOENet | Non
                alpha: float | str = 0.5, refine_iters: int = 0, gs_iters: int = 200, norm: str = "max",
                device: str = "cpu", system: FresnelSystem | None = None, objective: str = "tradeoff",
                select: str = "weighted", ssim_weight: float = 0.65, hotspot_guard: float = 0.3) -> Result:
-    """alpha — число из [0, 1] или "auto" (выбор по min(КК, ИСС), только для method="nn")."""
+    """alpha — число из [0, 1], "fast" (один проход при 0,5 с защитой от горячей точки) или
+    "auto" (5 вариантов α за один батч, выбор по 0,35·КК + 0,65·ИСС); только для method="nn"."""
     system = system or FresnelSystem().to(device)
     target = torch.tensor(np.stack(images)[None] / 255.0, dtype=torch.float32, device=device)
 
@@ -125,7 +142,9 @@ def synthesize(images: list[np.ndarray], method: str = "nn", model: DOENet | Non
     if method == "nn":
         if model is None:
             raise ValueError("нужна модель")
-        if alpha == "auto":
+        if alpha == "fast":
+            psi, alpha = nn_fast(model, system, target, hotspot_guard=hotspot_guard)
+        elif alpha == "auto":
             psi, alpha = nn_auto_alpha(model, system, target, norm=norm, select=select, ssim_weight=ssim_weight,
                                        hotspot_guard=hotspot_guard)
         else:
@@ -136,7 +155,7 @@ def synthesize(images: list[np.ndarray], method: str = "nn", model: DOENet | Non
         psi = gerchberg_saxton(system, target, iters=gs_iters)
         alpha = None
     elif method == "adam":
-        alpha = 0.5 if alpha == "auto" else float(alpha)
+        alpha = 0.5 if alpha in ("auto", "fast") else float(alpha)
         psi = gerchberg_saxton(system, target, iters=50)
         psi = refine(system, target, psi, refine_iters or 500, alpha, objective=objective, norm=norm)
     else:

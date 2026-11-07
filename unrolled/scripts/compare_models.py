@@ -2,7 +2,7 @@
 
 Метрики считаются по 8-битным PNG; исходное и восстановленное изображения перед
 сравнением нормируются на максимум (doe.metrics.evaluate). Для каждой модели —
-чистый прямой проход с --alpha auto.
+чистый прямой проход (--alpha fast по умолчанию).
 
     python scripts/compare_models.py --weights g4=weights/doe_net.pt ft=runs/.../doe_net.pt \
         --expert-dir path/to/expert_runs --out results/model_comparison.json
@@ -55,6 +55,7 @@ def main():
     ap.add_argument("--expert-dir")
     ap.add_argument("--n", type=int, default=24)
     ap.add_argument("--select", choices=["weighted", "min", "sum"], default="weighted")
+    ap.add_argument("--alpha", default="fast", help="fast | auto | число 0…1")
     ap.add_argument("--out", default=str(ROOT / "results" / "model_comparison.json"))
     a = ap.parse_args()
     torch.set_num_threads(os.cpu_count() or 4)
@@ -66,7 +67,8 @@ def main():
         model = load_model(path)
         table[name] = {}
         for g, quads in gs.items():
-            res = [synthesize(q, "nn", model, "auto", system=system, select=a.select) for q in quads]
+            alpha = a.alpha if a.alpha in ("fast", "auto") else float(a.alpha)
+            res = [synthesize(q, "nn", model, alpha, system=system, select=a.select) for q in quads]
             p = float(np.mean([np.mean([m["pearson"] for m in r.metrics]) for r in res]))
             s = float(np.mean([np.mean([m["ssim"] for m in r.metrics]) for r in res]))
             s7 = float(np.mean([np.mean([m["ssim_7x7"] for m in r.metrics]) for r in res]))
