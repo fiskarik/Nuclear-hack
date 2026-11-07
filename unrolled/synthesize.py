@@ -59,6 +59,9 @@ def main():
                     help="критерий --alpha auto: weighted — максимум (1−w)·КК + w·ИСС (по умолчанию, w=0,65: "
                          "метрики оцениваются независимо, ИСС чуть важнее); min — максимум min(КК, ИСС); sum")
     ap.add_argument("--ssim-weight", type=float, default=0.65, help="вес ИСС для --select weighted")
+    ap.add_argument("--hotspot-guard", type=float, default=0.3,
+                    help="отбрасывать варианты α, где 99-й перцентиль восстановления ниже этой доли максимума "
+                         "(«горячая точка» затемняет кадр и искусственно поднимает ИСС); 0 — отключить")
     ap.add_argument("--objective", choices=["tradeoff", "minmax"], default="minmax",
                     help="цель доводки: minmax — максимум худшей из метрик, tradeoff — взвешенная по α")
     ap.add_argument("--gs-iters", type=int, default=200)
@@ -77,7 +80,7 @@ def main():
         synthesize(images, "nn", model, 0.5, device=args.device)
     res = synthesize(images, args.method, model, alpha=args.alpha, refine_iters=args.refine,
                      gs_iters=args.gs_iters, norm=args.norm, device=args.device, objective=args.objective,
-                     select=args.select, ssim_weight=args.ssim_weight)
+                     select=args.select, ssim_weight=args.ssim_weight, hotspot_guard=args.hotspot_guard)
     save_result(res, args.out, images)
 
     print(f"Метод: {args.method}" + (f" (α={res.alpha:g}{' — выбрано автоматически' if args.alpha == 'auto' else ''}, "
