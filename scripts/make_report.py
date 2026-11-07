@@ -71,6 +71,10 @@ def mean_metrics(res_list):
     return float(p), float(s), float(g), float(t)
 
 
+def mean_ssim7(res_list):
+    return float(np.mean([np.mean([m["ssim_7x7"] for m in r.metrics]) for r in res_list]))
+
+
 def aliasing_figure(path: Path):
     p = OpticalParams()
     z = np.linspace(15e-3, 35e-3, 400)
@@ -230,7 +234,7 @@ def main():
     synthesize(next(iter(sets.values())), "nn", model, device=dev, system=system)  # прогрев
     per_set = {}
     for name, imgs in sets.items():
-        r_nn = synthesize(imgs, "nn", model, 0.5, device=dev, system=system)
+        r_nn = synthesize(imgs, "nn", model, "auto", device=dev, system=system)
         r_gs = synthesize(imgs, "gs", gs_iters=200, device=dev, system=system)
         save_result(r_nn, out / name, imgs)
         gallery(out / f"gallery_{name}.png", name, imgs, r_nn, r_gs)
@@ -248,19 +252,25 @@ def main():
         "НС, α=0 (макс. КК)": dict(method="nn", model=model, alpha=0.0),
         "НС, α=0.5": dict(method="nn", model=model, alpha=0.5),
         "НС, α=1 (макс. ИСС)": dict(method="nn", model=model, alpha=1.0),
-        "НС α=0.5 + 100 ит. Adam": dict(method="nn", model=model, alpha=0.5, refine_iters=100),
+        "НС, α=auto (выбор по min(КК, ИСС))": dict(method="nn", model=model, alpha="auto"),
+        "НС α=auto + 100 ит. доводки (minmax)": dict(method="nn", model=model, alpha="auto", refine_iters=100,
+                                                      objective="minmax"),
         "ГС, 50 итераций": dict(method="gs", gs_iters=50),
         "ГС, 200 итераций": dict(method="gs", gs_iters=200),
-        f"Adam, {a.adam_iters} итераций, α=0.5": dict(method="adam", alpha=0.5, refine_iters=a.adam_iters),
+        f"Adam, {a.adam_iters} итераций (minmax)": dict(method="adam", alpha=0.5, refine_iters=a.adam_iters,
+                                                        objective="minmax"),
     }
     bench = {}
     for mname, kw in methods.items():
         bench[mname] = {}
         for gname, quads in groups.items():
-            qs = quads if "Adam" not in mname or "НС" in mname else quads[: max(4, len(quads) // 3)]
+            qs = quads if not mname.startswith("Adam") else quads[: max(4, len(quads) // 3)]
             res = [synthesize(q, device=dev, system=system, **kw) for q in qs]
             p, s, g, t = mean_metrics(res)
-            bench[mname][gname] = {"pearson": p, "ssim": s, "ssim_global": g, "ms": t * 1e3, "n": len(qs)}
+            bench[mname][gname] = {"pearson": p, "ssim": s, "ssim_7x7": mean_ssim7(res), "ssim_global": g,
+                                   "ms": t * 1e3, "n": len(qs),
+                                   "alpha_mean": float(np.mean([r.alpha for r in res])) if res[0].alpha is not None
+                                   else None}
             print(f"{mname:28s} {gname:20s} КК={p:.3f} ИСС={s:.3f} t={t * 1e3:.0f} мс", flush=True)
     summary["benchmark"] = bench
     gn = list(groups)
@@ -282,8 +292,9 @@ def main():
         ax[gi].plot([p[0] for p in pts], [p[1] for p in pts], "-o", label="НС (α = 0 … 1)")
         for al, p in zip(alphas, pts):
             ax[gi].annotate(f"α={al}", (p[0], p[1]), fontsize=7, xytext=(3, 3), textcoords="offset points")
-        for mname, mk in (("ГС, 200 итераций", "s"), (f"Adam, {a.adam_iters} итераций, α=0.5", "^"),
-                          ("НС α=0.5 + 100 ит. Adam", "D")):
+        for mname, mk in (("ГС, 200 итераций", "s"), (f"Adam, {a.adam_iters} итераций (minmax)", "^"),
+                          ("НС, α=auto (выбор по min(КК, ИСС))", "*"),
+                          ("НС α=auto + 100 ит. доводки (minmax)", "D")):
             r = bench[mname][g]
             ax[gi].plot(r["pearson"], r["ssim"], mk, label=mname)
         ax[gi].set_xlabel("КК Пирсона")
