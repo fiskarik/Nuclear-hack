@@ -37,7 +37,7 @@ def parse():
     ap.add_argument("--mix", default="0.35,0.15,0.30,0.20",
                     help="доли источников банка: синтетика, текстуры 128, фрагменты текстур 512, CIFAR-10 "
                          "(текстуры 512 и CIFAR берутся из data/cache, см. scripts/prepare_data.py)")
-    ap.add_argument("--ssim-norm", choices=["fit", "max"], default="max",
+    ap.add_argument("--ssim-norm", choices=["fit", "max", "rms"], default="max",
                     help="нормировка восстановления в ИСС-части потерь (max — как при сохранении PNG)")
     ap.add_argument("--workers", type=int, default=os.cpu_count() or 1)
     ap.add_argument("--base", type=int, default=32)
@@ -98,8 +98,9 @@ def load_examples(root: str) -> dict[str, torch.Tensor]:
 
 
 @torch.no_grad()
-def evaluate(model, system, targets: torch.Tensor, alpha: float, bs: int = 32) -> dict[str, float]:
-    """Метрики как при сохранении PNG: нормировка на максимум, квантование 0…255."""
+def evaluate(model, system, targets: torch.Tensor, alpha: float, bs: int = 32, norm: str = "max"
+             ) -> dict[str, float]:
+    """Метрики как при сохранении PNG: нормировка (max или rms), квантование 0…255."""
     model.eval()
     pccs, ssims = [], []
     for i in range(0, len(targets), bs):
@@ -108,8 +109,12 @@ def evaluate(model, system, targets: torch.Tensor, alpha: float, bs: int = 32) -
         phi = system.to_physical(psi)
         phi = torch.round((phi + math.pi) / (2 * math.pi) * 255) / 255 * 2 * math.pi - math.pi
         rec = system.reconstruct(system.to_dechirped(phi))
-        rec = torch.round(rec / rec.amax(dim=(-2, -1), keepdim=True) * 255) / 255
         tq = torch.round(t * 255) / 255
+        if norm == "rms":
+            k = tq.pow(2).mean(dim=(-2, -1), keepdim=True).sqrt() / rec.pow(2).mean(dim=(-2, -1), keepdim=True).sqrt()
+            rec = torch.round((rec * k).clamp(max=1.0) * 255) / 255
+        else:
+            rec = torch.round(rec / rec.amax(dim=(-2, -1), keepdim=True) * 255) / 255
         pccs.append(pearson_t(rec, tq).mean(1))
         ssims.append(ssim_map(rec, tq).mean(dim=(-3, -2, -1)))
     model.train()
@@ -167,6 +172,7 @@ def main():
     val_sets = {k: v.to(dev) for k, v in val_sets.items()}
     examples = {k: v.to(dev) for k, v in load_examples(args.examples).items()}
     total = args.steps
+    eval_norm = "rms" if args.ssim_norm == "rms" else "max"
     warm = 300
     log = open(out / "train_log.jsonl", "a")
     t_start = time.time()
@@ -197,7 +203,7 @@ def main():
         final = tradeoff_loss(recs[-1], target, alpha, w_mse=args.w_mse, ssim_norm=args.ssim_norm)
         loss = final["loss"]
         if args.w_minmax > 0:
-            loss = loss + args.w_minmax * minmax_term(recs[-1], target)
+            loss = loss + args.w_minmax * minmax_term(recs[-1], target, norm=args.ssim_norm)
         if args.deep_sup > 0 and len(recs) > 1:
             inter = sum(tradeoff_loss(r, target, alpha, w_mse=args.w_mse, ssim_norm=args.ssim_norm)["loss"] for r in recs[:-1]) / (len(recs) - 1)
             loss = loss + args.deep_sup * inter
@@ -231,9 +237,9 @@ def main():
             ev = {"step": step, "val": {}}
             for vname, vt in val_sets.items():
                 for a in (0.0, 0.5, 1.0):
-                    ev["val"][f"{vname}_{a}"] = evaluate(model, system, vt, a)
+                    ev["val"][f"{vname}_{a}"] = evaluate(model, system, vt, a, norm=eval_norm)
             for name, t in examples.items():
-                ev[name] = evaluate(model, system, t, 0.5)
+                ev[name] = evaluate(model, system, t, 0.5, norm=eval_norm)
             score_sum = float(np.mean([ev["val"][f"{v}_0.5"]["pcc"] + ev["val"][f"{v}_0.5"]["ssim"]
                                        for v in val_sets]))
             score_mm = float(np.mean([max(min(ev["val"][f"{v}_{a}"]["pcc"], ev["val"][f"{v}_{a}"]["ssim"])

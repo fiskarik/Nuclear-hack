@@ -10,7 +10,7 @@ import torch
 
 from .imageio import amplitude_to_uint8, save_gray
 from .iterative import gerchberg_saxton
-from .losses import pearson_t, ssim_map, tradeoff_loss
+from .losses import display_norm, pearson_t, ssim_map, tradeoff_loss
 from .metrics import evaluate
 from .model import DOENet
 from .physics import FresnelSystem, phase_to_uint8, uint8_to_phase
@@ -26,16 +26,17 @@ def load_model(path: str | Path = DEFAULT_WEIGHTS, device: str = "cpu") -> DOENe
     return model
 
 
-def minmax_loss(recon: torch.Tensor, target: torch.Tensor, sharpness: float = 20.0) -> torch.Tensor:
-    """−softmin(КК, ИСС): максимизирует худшую из двух метрик (восстановление нормируется на максимум)."""
-    r = recon / recon.amax(dim=(-2, -1), keepdim=True).clamp_min(1e-8)
+def minmax_loss(recon: torch.Tensor, target: torch.Tensor, sharpness: float = 20.0, norm: str = "max"
+                ) -> torch.Tensor:
+    """−softmin(КК, ИСС): максимизирует худшую из двух метрик (в шкале сохранения PNG)."""
+    r = display_norm(recon, target, norm)
     pcc = pearson_t(r, target).mean()
     ssim = ssim_map(r, target).mean()
     return torch.logsumexp(torch.stack([-pcc, -ssim]) * sharpness, 0) / sharpness
 
 
 def refine(system: FresnelSystem, target: torch.Tensor, psi: torch.Tensor, iters: int, alpha: float,
-           lr: float = 0.03, objective: str = "tradeoff") -> torch.Tensor:
+           lr: float = 0.03, objective: str = "tradeoff", norm: str = "max") -> torch.Tensor:
     """Дополнительная оптимизация фазы (Adam) от решения сети — опционально.
 
     objective="tradeoff" — (1−α)(1−КК) + α(1−ИСС) + 0,1·СКО; "minmax" — максимум худшей метрики.
@@ -48,7 +49,8 @@ def refine(system: FresnelSystem, target: torch.Tensor, psi: torch.Tensor, iters
     for _ in range(iters):
         opt.zero_grad(set_to_none=True)
         rec = system.reconstruct(p)
-        loss = minmax_loss(rec, target) if objective == "minmax" else tradeoff_loss(rec, target, a)["loss"]
+        loss = (minmax_loss(rec, target, norm=norm) if objective == "minmax"
+                else tradeoff_loss(rec, target, a, ssim_norm=norm)["loss"])
         loss.backward()
         opt.step()
     return p.detach()
@@ -59,7 +61,7 @@ ALPHA_GRID = (0.0, 0.25, 0.5, 0.75, 1.0)
 
 @torch.no_grad()
 def nn_auto_alpha(model: DOENet, system: FresnelSystem, target: torch.Tensor,
-                  grid: tuple[float, ...] = ALPHA_GRID) -> tuple[torch.Tensor, float]:
+                  grid: tuple[float, ...] = ALPHA_GRID, norm: str = "max") -> tuple[torch.Tensor, float]:
     """Один батч-проход сети при нескольких α; выбирается ДОЭ с максимальным min(КК, ИСС).
 
     Цели известны на этапе синтеза (это входные изображения), поэтому выбор делается по
@@ -71,8 +73,8 @@ def nn_auto_alpha(model: DOENet, system: FresnelSystem, target: torch.Tensor,
     phi = system.to_physical(psi)
     phi = uint8_to_phase(phase_to_uint8(phi))  # оцениваем ровно то, что будет сохранено
     rec = system.reconstruct(system.to_dechirped(phi))
-    rec = torch.round(rec / rec.amax(dim=(-2, -1), keepdim=True) * 255) / 255
     tq = torch.round(t * 255) / 255
+    rec = torch.round(display_norm(rec, tq, "rms" if norm == "rms" else "max") * 255) / 255
     score = torch.minimum(pearson_t(rec, tq).mean(1), ssim_map(rec, tq).mean(dim=(-3, -2, -1)))
     best = int(torch.argmax(score))
     return psi[best:best + 1], float(grid[best])
@@ -105,18 +107,18 @@ def synthesize(images: list[np.ndarray], method: str = "nn", model: DOENet | Non
         if model is None:
             raise ValueError("нужна модель")
         if alpha == "auto":
-            psi, alpha = nn_auto_alpha(model, system, target)
+            psi, alpha = nn_auto_alpha(model, system, target, norm=norm)
         else:
             with torch.no_grad():
                 psi = model.synthesize(target, system, float(alpha))
-        psi = refine(system, target, psi, refine_iters, float(alpha), objective=objective)
+        psi = refine(system, target, psi, refine_iters, float(alpha), objective=objective, norm=norm)
     elif method == "gs":
         psi = gerchberg_saxton(system, target, iters=gs_iters)
         alpha = None
     elif method == "adam":
         alpha = 0.5 if alpha == "auto" else float(alpha)
         psi = gerchberg_saxton(system, target, iters=50)
-        psi = refine(system, target, psi, refine_iters or 500, alpha, objective=objective)
+        psi = refine(system, target, psi, refine_iters or 500, alpha, objective=objective, norm=norm)
     else:
         raise ValueError(method)
     sync()

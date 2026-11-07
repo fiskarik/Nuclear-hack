@@ -45,6 +45,21 @@ def pearson_t(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
     return num / den
 
 
+def display_norm(recon: torch.Tensor, target: torch.Tensor, norm: str = "max") -> torch.Tensor:
+    """Восстановление в шкале [0,1] так, как оно будет сохранено в PNG.
+
+    max — деление на максимум; rms — RMS восстановления = RMS цели с насыщением на 1
+    (правило из expert_runs); fit — масштаб по МНК без насыщения.
+    """
+    if norm == "max":
+        return recon / recon.amax(dim=(-2, -1), keepdim=True).clamp_min(1e-8)
+    if norm == "rms":
+        k = target.pow(2).mean(dim=(-2, -1), keepdim=True).sqrt() / \
+            recon.pow(2).mean(dim=(-2, -1), keepdim=True).clamp_min(1e-12).sqrt()
+        return (recon * k).clamp(max=1.0)
+    return fit_scale(recon, target)
+
+
 def fit_scale(recon: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
     s = (recon * target).sum(dim=(-2, -1), keepdim=True) / recon.pow(2).sum(dim=(-2, -1), keepdim=True).clamp_min(1e-12)
     return recon * s
@@ -65,22 +80,23 @@ def tradeoff_loss(recon: torch.Tensor, target: torch.Tensor, alpha: torch.Tensor
                   ssim_norm: str = "max") -> dict[str, torch.Tensor]:
     """Потери с параметром компромисса α (B,): (1−α)(1−КК) + α(1−ИСС) + w_mse·СКО.
 
-    ssim_norm="max": ИСС считается для восстановления, нормированного на максимум —
-    ровно так, как оно сохраняется в PNG; "fit" — после масштабирования по МНК.
+    ssim_norm — правило сохранения PNG (см. display_norm): max | rms | fit. Для rms
+    КК и СКО тоже считаются по насыщенному изображению — ровно как при оценке.
     """
-    r = fit_scale(recon, target)
+    rs = display_norm(recon, target, ssim_norm)
+    r = rs if ssim_norm == "rms" else fit_scale(recon, target)
     mse = ((r - target).pow(2).mean(dim=(-2, -1)) / target.pow(2).mean(dim=(-2, -1)).clamp_min(1e-6)).mean(1)
-    pcc = pearson_t(recon, target).mean(1)
-    rs = recon / recon.amax(dim=(-2, -1), keepdim=True).clamp_min(1e-8) if ssim_norm == "max" else r
+    pcc = pearson_t(rs if ssim_norm == "rms" else recon, target).mean(1)
     ssim = ssim_map(rs, target).mean(dim=(-3, -2, -1))
     a = alpha.to(recon.dtype)
     loss = ((1 - a) * (1 - pcc) + a * (1 - ssim) + w_mse * mse).mean()
     return {"loss": loss, "mse": mse.mean().detach(), "pcc": pcc.mean().detach(), "ssim": ssim.mean().detach()}
 
 
-def minmax_term(recon: torch.Tensor, target: torch.Tensor, sharpness: float = 20.0) -> torch.Tensor:
-    """1 − softmin(КК, ИСС) для каждого примера (восстановление нормируется на максимум), среднее по батчу."""
-    r = recon / recon.amax(dim=(-2, -1), keepdim=True).clamp_min(1e-8)
+def minmax_term(recon: torch.Tensor, target: torch.Tensor, sharpness: float = 20.0, norm: str = "max"
+                ) -> torch.Tensor:
+    """1 − softmin(КК, ИСС) для каждого примера (в шкале сохранения PNG), среднее по батчу."""
+    r = display_norm(recon, target, norm)
     pcc = pearson_t(r, target).mean(1)
     ssim = ssim_map(r, target).mean(dim=(-3, -2, -1))
     soft_min = -torch.logsumexp(torch.stack([-pcc, -ssim]) * sharpness, 0) / sharpness
