@@ -54,6 +54,18 @@ for root, _, files in os.walk("/kaggle/input"):
         if f.endswith(".pt") and not os.path.exists(os.path.join("weights", f)):
             os.symlink(os.path.join(root, f), os.path.join("weights", f))
 print("weights:", os.listdir("weights"), flush=True)
+# архивы в подключённых датасетах (например, imagenette-160.tgz) → /kaggle/tmp/extracted
+for root, _, files in os.walk("/kaggle/input"):
+    for f in files:
+        if f.endswith((".tgz", ".tar.gz", ".tar")):
+            dst = os.path.join("/kaggle/tmp/extracted", f.split(".")[0])
+            os.makedirs(dst, exist_ok=True)
+            try:
+                with tarfile.open(os.path.join(root, f)) as tf:
+                    tf.extractall(dst, filter="data")
+                print("extracted", f, "->", dst, flush=True)
+            except Exception as e:
+                print("extract failed", f, e, flush=True)
 subprocess.run("nvidia-smi; python -c 'import torch,sys;print(sys.version, torch.__version__, torch.cuda.device_count())'", shell=True)
 try:
     import torch

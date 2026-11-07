@@ -56,6 +56,8 @@ def main():
     ap.add_argument("--n", type=int, default=24)
     ap.add_argument("--select", choices=["weighted", "min", "sum"], default="weighted")
     ap.add_argument("--alpha", default="fast", help="fast | auto | число 0…1")
+    ap.add_argument("--refine", type=int, default=0, help="итераций доводки после сети")
+    ap.add_argument("--refine-ssim-weight", type=float, default=0.65)
     ap.add_argument("--out", default=str(ROOT / "results" / "model_comparison.json"))
     a = ap.parse_args()
     torch.set_num_threads(os.cpu_count() or 4)
@@ -68,11 +70,13 @@ def main():
         table[name] = {}
         for g, quads in gs.items():
             alpha = a.alpha if a.alpha in ("fast", "auto") else float(a.alpha)
-            res = [synthesize(q, "nn", model, alpha, system=system, select=a.select) for q in quads]
+            res = [synthesize(q, "nn", model, alpha, system=system, select=a.select, refine_iters=a.refine,
+                              objective="tradeoff", refine_alpha=a.refine_ssim_weight) for q in quads]
             p = float(np.mean([np.mean([m["pearson"] for m in r.metrics]) for r in res]))
             s = float(np.mean([np.mean([m["ssim"] for m in r.metrics]) for r in res]))
             s7 = float(np.mean([np.mean([m["ssim_7x7"] for m in r.metrics]) for r in res]))
-            table[name][g] = {"pearson": p, "ssim": s, "ssim_7x7": s7, "n": len(quads)}
+            table[name][g] = {"pearson": p, "ssim": s, "ssim_7x7": s7, "n": len(quads),
+                              "ms": float(np.mean([r.seconds for r in res]) * 1000)}
             print(f"{name:8s} {g:20s} КК={p:.3f} ИСС={s:.3f} ИСС7={s7:.3f} (n={len(quads)})", flush=True)
         main_groups = [g for g in gs if g not in ("синтетика", "ваша четвёрка")]
         table[name]["_score_min"] = float(np.mean([min(table[name][g]["pearson"], table[name][g]["ssim"])

@@ -18,9 +18,10 @@ import numpy as np
 import torch
 from PIL import Image
 
-from doe.data import build_bank, load_cache, load_textures
+from doe import data as doe_data
+from doe.data import build_bank, collect_images, load_cache, load_real_images, load_textures
 from doe.imageio import load_gray
-from doe.losses import minmax_term, pearson_t, ssim_map, tradeoff_loss
+from doe.losses import hotspot_penalty, minmax_term, pearson_t, ssim_map, tradeoff_loss
 from doe.model import DOENet, count_params, load_expanded
 from doe.physics import FresnelSystem
 
@@ -52,6 +53,8 @@ def parse():
     ap.add_argument("--w-mse", type=float, default=0.1)
     ap.add_argument("--w-minmax", type=float, default=0.0,
                     help="вес члена 1 − softmin(КК, ИСС): тянет вверх худшую из двух метрик")
+    ap.add_argument("--w-hotspot", type=float, default=0.0, help="вес штрафа за «горячую точку»")
+    ap.add_argument("--real-root", default="", help="корень внешних датасетов (например /kaggle/input)")
     ap.add_argument("--select", choices=["minmax", "sum"], default="minmax",
                     help="критерий выбора чекпойнта: minmax — среднее по группам max_α min(КК, ИСС); "
                          "sum — среднее КК+ИСС при α=0,5")
@@ -137,6 +140,17 @@ def main():
 
     t0 = time.time()
     mix = tuple(float(v) for v in args.mix.split(","))
+    kodak = []
+    if args.real_root:
+        roots = [r for r in args.real_root.split(",") if r and os.path.isdir(r)]
+        photos, realtex = [], []
+        for r in roots:
+            photos += collect_images(r, ("imagenette",), limit=8000)
+            photos += collect_images(r, ("bsds", "berkeley", "bsr"), ("groundtruth", "ground_truth"))
+            realtex += collect_images(r, ("dtd",))
+            kodak += collect_images(r, ("kodak",))
+        n_ph, n_tx = load_real_images(photos, realtex, workers=args.workers)
+        print(f"реальные изображения: фото {n_ph}, текстуры DTD {n_tx}, Kodak (контроль) {len(kodak)}", flush=True)
     bank = build_bank(args.bank, seed=args.seed + 1, workers=args.workers, mix=mix)
     val_bank = build_bank(256, seed=987654)
     vrng = np.random.default_rng(4242)
@@ -146,6 +160,16 @@ def main():
     if len(tex_test):
         val_sets["tex"] = torch.tensor(tex_test[vrng.integers(0, len(tex_test), size=(64, 4))] / 255.0,
                                        dtype=torch.float32)
+    if kodak:
+        kimgs = [a for a in (doe_data._load_small(p, 192) for p in kodak) if a is not None]
+        krng = np.random.default_rng(7)
+        crops = []
+        for _ in range(256):
+            a = kimgs[krng.integers(len(kimgs))]
+            y, x = krng.integers(0, a.shape[0] - 127), krng.integers(0, a.shape[1] - 127)
+            crops.append(a[y:y + 128, x:x + 128])
+        crops = np.stack(crops)
+        val_sets["kodak"] = torch.tensor(crops.reshape(64, 4, 128, 128) / 255.0, dtype=torch.float32)
     cifar_test = load_cache("cifar_gray", "test")
     if len(cifar_test):
         up = np.stack([np.asarray(Image.fromarray(c).resize((128, 128), Image.BICUBIC)) for c in cifar_test[:256]])
@@ -207,6 +231,8 @@ def main():
         recs = [torch.fft.fftshift(r, dim=(-2, -1)) for r in recs]
         final = tradeoff_loss(recs[-1], target, alpha, w_mse=args.w_mse, ssim_norm=args.ssim_norm)
         loss = final["loss"]
+        if args.w_hotspot > 0:
+            loss = loss + args.w_hotspot * hotspot_penalty(recs[-1])
         if args.w_minmax > 0:
             loss = loss + args.w_minmax * minmax_term(recs[-1], target, norm=args.ssim_norm)
         if args.deep_sup > 0 and len(recs) > 1:

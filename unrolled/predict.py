@@ -9,6 +9,8 @@
 Выход (--output), для каждого комплекта <имя>/:
   doe.png                — фазовый ДОЭ 128×128, 8 бит, grayscale (0 ↔ −π, 255 ↔ +π);
   recon_1.png…recon_4.png — модули полей, восстановленных из doe.png (Френель, одно БПФ);
+Метод по умолчанию: один проход нейросети (α=0,5, защита от «горячей точки») + 50 итераций
+доводки фазы градиентом через ту же модель Френеля (цель 0,35·(1−КК) + 0,65·(1−ИСС)).
   metrics.json, metrics.csv, preview.png;
 и общий summary.csv: КК, ИСС и время синтеза по каждому комплекту.
 
@@ -69,7 +71,10 @@ def main():
     ap.add_argument("--alpha", default="fast",
                     help="fast (по умолчанию) — один проход при α=0,5 с защитой от «горячей точки»; "
                          "auto — 5 вариантов α и выбор лучшего; или число 0…1")
-    ap.add_argument("--refine", type=int, default=0, help="итераций доводки после сети (0 — чистая сеть)")
+    ap.add_argument("--refine", type=int, default=50,
+                    help="итераций доводки после сети через модель Френеля (по умолчанию 50, ~0,45 с; 0 — чистая сеть)")
+    ap.add_argument("--refine-ssim-weight", type=float, default=0.65,
+                    help="вес ИСС в цели доводки: 0,5 — баланс, 1 — только ИСС (по умолчанию 0,65: ИСС — основная метрика)")
     ap.add_argument("--threads", type=int, default=0, help="потоков CPU (0 — все)")
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     ap.add_argument("--no-extras", action="store_true", help="сохранять только doe.png")
@@ -98,7 +103,8 @@ def main():
     rows = []
     for name, files in sets:
         imgs = [load_gray(f) for f in files]
-        res = synthesize(imgs, "nn", model, alpha, refine_iters=a.refine, device=a.device, system=system)
+        res = synthesize(imgs, "nn", model, alpha, refine_iters=a.refine, device=a.device, system=system,
+                         objective="tradeoff", refine_alpha=a.refine_ssim_weight)
         dst = out / name
         if a.no_extras:
             from doe.imageio import save_gray

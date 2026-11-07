@@ -10,7 +10,7 @@ import torch
 
 from .imageio import amplitude_to_uint8, save_gray
 from .iterative import gerchberg_saxton
-from .losses import display_norm, pearson_t, ssim_map, tradeoff_loss
+from .losses import display_norm, hotspot_penalty, pearson_t, ssim_map, tradeoff_loss
 from .metrics import evaluate
 from .model import DOENet
 from .physics import FresnelSystem, phase_to_uint8, uint8_to_phase
@@ -37,7 +37,8 @@ def minmax_loss(recon: torch.Tensor, target: torch.Tensor, sharpness: float = 20
 
 
 def refine(system: FresnelSystem, target: torch.Tensor, psi: torch.Tensor, iters: int, alpha: float,
-           lr: float = 0.03, objective: str = "tradeoff", norm: str = "max") -> torch.Tensor:
+           lr: float = 0.03, objective: str = "tradeoff", norm: str = "max", w_hotspot: float = 1.0
+           ) -> torch.Tensor:
     """Дополнительная оптимизация фазы (Adam) от решения сети — опционально.
 
     objective="tradeoff" — (1−α)(1−КК) + α(1−ИСС) + 0,1·СКО; "minmax" — максимум худшей метрики.
@@ -52,6 +53,8 @@ def refine(system: FresnelSystem, target: torch.Tensor, psi: torch.Tensor, iters
         rec = system.reconstruct(p)
         loss = (minmax_loss(rec, target, norm=norm) if objective == "minmax"
                 else tradeoff_loss(rec, target, a, ssim_norm=norm)["loss"])
+        if w_hotspot > 0:  # не дать доводке собрать свет в «горячую точку»
+            loss = loss + w_hotspot * hotspot_penalty(rec)
         loss.backward()
         opt.step()
     return p.detach()
@@ -127,7 +130,8 @@ class Result:
 def synthesize(images: list[np.ndarray], method: str = "nn", model: DOENet | None = None,
                alpha: float | str = 0.5, refine_iters: int = 0, gs_iters: int = 200, norm: str = "max",
                device: str = "cpu", system: FresnelSystem | None = None, objective: str = "tradeoff",
-               select: str = "weighted", ssim_weight: float = 0.65, hotspot_guard: float = 0.3) -> Result:
+               select: str = "weighted", ssim_weight: float = 0.65, hotspot_guard: float = 0.3,
+               refine_alpha: float | None = None) -> Result:
     """alpha — число из [0, 1], "fast" (один проход при 0,5 с защитой от горячей точки) или
     "auto" (5 вариантов α за один батч, выбор по 0,35·КК + 0,65·ИСС); только для method="nn"."""
     system = system or FresnelSystem().to(device)
@@ -150,7 +154,8 @@ def synthesize(images: list[np.ndarray], method: str = "nn", model: DOENet | Non
         else:
             with torch.no_grad():
                 psi = model.synthesize(target, system, float(alpha))
-        psi = refine(system, target, psi, refine_iters, float(alpha), objective=objective, norm=norm)
+        ra = float(alpha) if refine_alpha is None else float(refine_alpha)
+        psi = refine(system, target, psi, refine_iters, ra, objective=objective, norm=norm)
     elif method == "gs":
         psi = gerchberg_saxton(system, target, iters=gs_iters)
         alpha = None

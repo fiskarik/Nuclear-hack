@@ -104,3 +104,10 @@ def minmax_term(recon: torch.Tensor, target: torch.Tensor, sharpness: float = 20
     ssim = ssim_map(r, t).mean(dim=(-3, -2, -1))
     soft_min = -torch.logsumexp(torch.stack([-pcc, -ssim]) * sharpness, 0) / sharpness
     return (1 - soft_min).mean()
+
+
+def hotspot_penalty(recon: torch.Tensor, threshold: float = 0.3) -> torch.Tensor:
+    """Штраф за «горячую точку»: 99-й перцентиль кадра, нормированного на максимум, должен быть ≥ threshold."""
+    r = recon / recon.amax(dim=(-2, -1), keepdim=True).clamp_min(1e-8)
+    p99 = torch.quantile(r.flatten(-2), 0.99, dim=-1)
+    return torch.relu(threshold - p99).mean()

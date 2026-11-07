@@ -354,6 +354,70 @@ def _photometric(rng: random.Random, arr: np.ndarray, invert_p: float = 0.25) ->
 # Доли источников по умолчанию: синтетика / текстуры 128 / текстуры 512 / CIFAR-10
 DEFAULT_MIX = (0.35, 0.15, 0.30, 0.20)
 
+# Реальные изображения из внешних датасетов (DTD, Imagenette, BSDS500, …): список массивов uint8
+# (оттенки серого, короткая сторона ~192 px). Заполняется до создания пула процессов (fork наследует).
+_PHOTOS: list = []
+_REALTEX: list = []
+
+
+def collect_images(root: str, include: tuple[str, ...], exclude: tuple[str, ...] = (), limit: int = 0,
+                   seed: int = 0) -> list[str]:
+    """Пути к jpg/png под root, в полном пути которых есть одна из подстрок include и нет exclude."""
+    exts = (".jpg", ".jpeg", ".png")
+    out = []
+    for d, _, files in os.walk(root, followlinks=True):
+        low = d.lower()
+        if not any(t in low for t in include) or any(t in low for t in exclude):
+            continue
+        out += [os.path.join(d, f) for f in files if f.lower().endswith(exts)]
+    out.sort()
+    if limit and len(out) > limit:
+        random.Random(seed).shuffle(out)
+        out = out[:limit]
+    return out
+
+
+def _load_small(path: str, short: int = 192) -> np.ndarray | None:
+    try:
+        im = Image.open(path).convert("L")
+    except Exception:
+        return None
+    w, h = im.size
+    k = short / min(w, h)
+    if k < 1:
+        im = im.resize((max(SIZE, int(w * k)), max(SIZE, int(h * k))), Image.LANCZOS)
+    a = np.asarray(im, np.uint8)
+    return a if min(a.shape) >= SIZE else None
+
+
+def load_real_images(photo_paths: list[str], tex_paths: list[str], workers: int = 1) -> tuple[int, int]:
+    """Загружает реальные фото и текстуры в _PHOTOS/_REALTEX (до создания банка)."""
+    global _PHOTOS, _REALTEX
+    if workers > 1:
+        from multiprocessing import Pool
+
+        with Pool(workers) as pool:
+            ph = pool.map(_load_small, photo_paths, chunksize=64)
+            tx = pool.map(_load_small, tex_paths, chunksize=64)
+    else:
+        ph = [_load_small(p) for p in photo_paths]
+        tx = [_load_small(p) for p in tex_paths]
+    _PHOTOS = [a for a in ph if a is not None]
+    _REALTEX = [a for a in tx if a is not None]
+    return len(_PHOTOS), len(_REALTEX)
+
+
+def real_image(rng: random.Random, pool: list) -> np.ndarray:
+    """Случайный фрагмент реального изображения (масштаб 1…1,5), с аугментациями."""
+    a = pool[rng.randrange(len(pool))]
+    h, w = a.shape
+    c = rng.randint(SIZE, min(h, w, int(SIZE * 1.5)))
+    y, x = rng.randint(0, h - c), rng.randint(0, w - c)
+    img = Image.fromarray(np.ascontiguousarray(a[y:y + c, x:x + c]), "L")
+    if c != SIZE:
+        img = img.resize((SIZE, SIZE), Image.LANCZOS)
+    return _photometric(rng, np.asarray(img, np.float32) / 255.0, invert_p=0.08)
+
 
 def build_bank(count: int, seed: int = 0, workers: int = 0, texture_frac: float = 0.0,
                texture_split: str = "train", mix: tuple[float, ...] | None = None) -> np.ndarray:
@@ -383,12 +447,15 @@ def _split(total: int, parts: int) -> list[int]:
 
 def _bank_chunk(count: int, seed: int, mix: tuple[float, ...] = (1.0, 0.0, 0.0, 0.0),
                 texture_split: str = "train") -> np.ndarray:
+    """mix: (синтетика, текстуры 128, текстуры 512, CIFAR-10[, реальные фото, реальные текстуры])."""
     rng = random.Random(seed)
     nrng = np.random.default_rng(seed)
+    mix = tuple(mix) + (0.0,) * (6 - len(mix))
     tex = load_textures(texture_split) if mix[1] > 0 else np.zeros((0,))
     tex512 = load_cache("textures512", texture_split) if mix[2] > 0 else np.zeros((0,))
     cifar = load_cache("cifar_gray", texture_split) if mix[3] > 0 else np.zeros((0,))
-    avail = [mix[0], mix[1] if len(tex) else 0.0, mix[2] if len(tex512) else 0.0, mix[3] if len(cifar) else 0.0]
+    avail = [mix[0], mix[1] if len(tex) else 0.0, mix[2] if len(tex512) else 0.0, mix[3] if len(cifar) else 0.0,
+             mix[4] if _PHOTOS else 0.0, mix[5] if _REALTEX else 0.0]
     avail[0] += sum(mix) - sum(avail)  # недоступные источники → синтетика
     cum = np.cumsum(avail) / max(sum(avail), 1e-9)
     out = []
@@ -400,6 +467,10 @@ def _bank_chunk(count: int, seed: int, mix: tuple[float, ...] = (1.0, 0.0, 0.0, 
             out.append(texture_image(rng, nrng, tex))
         elif r < cum[2]:
             out.append(texture512_image(rng, tex512))
-        else:
+        elif r < cum[3]:
             out.append(cifar_image(rng, cifar))
+        elif r < cum[4]:
+            out.append(real_image(rng, _PHOTOS))
+        else:
+            out.append(real_image(rng, _REALTEX))
     return np.stack(out, 0)
