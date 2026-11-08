@@ -8,9 +8,7 @@
 сеть на 8 стадий, веса `unrolled/weights/doe_net.pt` (вариант r8: дообучение на реальных фото и текстурах).
 Подробности — в [отчёте](unrolled/REPORT.md).
 Презентация к защите (команда FrogeeSoft, PhaseCoder) — [`presentation/PhaseCoder.pdf`](presentation/PhaseCoder.pdf)
-([`.pptx`](presentation/PhaseCoder.pptx)); расширенная версия с дополнительными слайдами —
-[`presentation/doe_nn_presentation.pdf`](presentation/doe_nn_presentation.pdf).
-
+([`.pptx`](presentation/PhaseCoder.pptx));
 ## Сборка и запуск в Docker
 
 ```bash
